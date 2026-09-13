@@ -1,5 +1,5 @@
-const APP_VERSION = "2.5.0-20260913";
-const BUILD_TAG = "250";
+const APP_VERSION = "2.6.0-20260913";
+const BUILD_TAG = "260";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const PB_EVENTS = [
@@ -184,7 +184,10 @@ async function liveRecalc(){
     $("#weightDeltaPreview").textContent=prev?.weightVolume&&d.weightVolume?`${d.weightVolume>=prev.weightVolume?"+":""}${((d.weightVolume/prev.weightVolume-1)*100).toFixed(1)}%`:"--";
     $("#liveCoach").textContent=buildCoachComment(d,all,profile,null); $("#liveCoach").classList.add("custom-note"); return;
   }
-  $("#liveCoach").classList.remove("custom-note"); $("#pbPreview").textContent=d.pb?timeFmt(d.pb):"未登録"; $("#pbRatioPreview").textContent=d.pbRatio?`${d.pbRatio.toFixed(1)}%`:"--"; $("#dropPreview").textContent=d.dropPct!=null?`${d.dropPct.toFixed(1)}%`:"--";
+  $("#liveCoach").classList.remove("custom-note");
+  $("#pbPreview").textContent=d.pb?timeFmt(d.pb):"未登録";
+  $("#pbRatioPreview").textContent=d.averageTime==null?"未計測":d.pbRatio?`${d.pbRatio.toFixed(1)}%`:"PB未登録";
+  $("#dropPreview").textContent=d.averageTime==null?"未計測":d.dropPct!=null?`${d.dropPct.toFixed(1)}%`:"比較なし";
   $$(".rep-time").forEach((el,i)=>{const t=parseTimeInput(el.value),r=pbRatio(d.pb,t),tag=document.querySelector(`[data-ratio-row="${i}"]`); if(tag)tag.textContent=r?`${r.toFixed(1)}%`:"--";});
   const history=await getAll("trainings"),meets=await getAll("meets"); $("#liveCoach").textContent=buildCoachComment(d,history,profile,findNextMeet(meets,d.date));
 }
@@ -192,7 +195,7 @@ async function saveTraining(e){
   e.preventDefault(); const d=currentTrainingDraft(); if(!d.date)return toast("日付を入力してください");
   if(d.isCustom){ if(!d.customMenuId||!d.representativeValue)return toast("カスタムメニューの記録を入力してください"); }
   else if(d.isWeight){ if(!d.weightExerciseName)return toast("ウェイト種目名を入力してください"); }
-  else { if(!d.category||!d.distance)return toast("メニューと距離を入力してください"); if(!d.averageTime&&!['jog','other'].includes(d.category))return toast("タイムを入力してください"); }
+  else { if(!d.category||!d.distance)return toast("メニューと距離を入力してください"); }
   const history=await getAll("trainings"),meets=await getAll("meets"); d.coach=buildCoachComment(d,history,profile,findNextMeet(meets,d.date)); d.createdAt=new Date().toISOString(); await addRecord("trainings",d); toast("練習を保存しました"); resetTrainingForm(); await refreshAll(); navigate("homeView");
 }
 function resetTrainingForm(){
@@ -274,6 +277,7 @@ async function renderHome(){
   const activities=[...all.map(x=>({...x,_type:"training"})),...meets.filter(x=>x.status==="completed").map(x=>({...x,_type:"race"}))].sort((a,b)=>b.date.localeCompare(a.date)||(b.id||0)-(a.id||0)); $("#recentList").classList.toggle("empty",!activities.length); $("#recentList").innerHTML=activities.length?activities.slice(0,5).map(activityRow).join(""):"まだ記録がありません。";
 }
 function fatigueText(x){ const b=Number(x.fatigueBefore||x.fatigue||0),a=Number(x.fatigueAfter||x.fatigue||0); return b&&a?`${b}→${a}/5`:b?`${b}/5`:"--"; }
+function trainingTimeText(x){ return Number.isFinite(Number(x.averageTime))&&Number(x.averageTime)>0?`平均 ${timeFmt(Number(x.averageTime))}`:"タイム 未計測"; }
 function runningMenuSummary(x){
   const label=CATEGORY_LABELS[x.category]||x.category||"練習",dist=x.distance?`${x.distance}m`:"";
   if(x.category==="flying"&&x.approachDistance) return `${label} 助走${x.approachDistance}m→計測${dist}`;
@@ -283,7 +287,7 @@ function activityRow(x){
   if(x._type==="race"||x.status==="completed") return`<div class="list-item"><div class="item-top"><span class="item-title"><span class="pill red">試合</span> ${esc(x.event)} ${timeFmt(x.resultSeconds)}</span><span>${x.isPB?'NEW PB':x.isSB?'SB':''}</span></div><div class="meta">${fmtDate(x.date)}｜${esc(x.name)}｜疲労 ${fatigueText(x)}</div></div>`;
   if(isWeightRecord(x))return`<div class="list-item"><div class="item-top"><span class="item-title"><span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||"ウェイト")}</span><span>${x.weightVolume?Math.round(x.weightVolume)+'kg':''}</span></div><div class="meta">${fmtDate(x.date)}｜${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜疲労 ${fatigueText(x)}</div></div>`;
   if(isCustomRecord(x))return`<div class="list-item"><div class="item-top"><span class="item-title"><span class="pill accent">カスタム</span> ${esc(x.customMenuName||"カスタム")}</span><span>${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':''}</span></div><div class="meta">${fmtDate(x.date)}｜${x.representativeValue!=null?Number(x.representativeValue).toFixed(2)+esc(x.unit||''):"--"}｜疲労 ${fatigueText(x)}</div></div>`;
-  return`<div class="list-item"><div class="item-top"><span class="item-title">${esc(runningMenuSummary(x))} × ${x.reps||1}${x.sets>1?` × ${x.sets}set`:''}</span><span>${x.pbRatio?x.pbRatio.toFixed(1)+'%':''}</span></div><div class="meta">${fmtDate(x.date)}｜平均 ${timeFmt(x.averageTime)}｜疲労 ${fatigueText(x)}</div></div>`;
+  return`<div class="list-item"><div class="item-top"><span class="item-title">${esc(runningMenuSummary(x))} × ${x.reps||1}${x.sets>1?` × ${x.sets}set`:''}</span><span>${x.pbRatio?x.pbRatio.toFixed(1)+'%':''}</span></div><div class="meta">${fmtDate(x.date)}｜${trainingTimeText(x)}｜疲労 ${fatigueText(x)}</div></div>`;
 }
 async function renderHistory(){
   const filter=$("#historyTypeFilter")?.value||"",q=($("#historySearch")?.value||"").toLowerCase(),trainings=await getAll("trainings"),meets=await getAll("meets");
@@ -297,7 +301,7 @@ function historyCard(x){
   }
   if(x._type==="weight")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||'ウェイト')}</strong><div class="meta">${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜総ボリューム ${Math.round(x.weightVolume||0)}kg｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||weightCoachNotice())}</div></article>`;
   if(x._type==="custom")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill accent">カスタム</span> ${esc(x.customMenuName||'カスタム')}</strong><div class="meta">代表値 ${Number(x.representativeValue||0).toFixed(2)}${esc(x.unit||'')}｜基準 ${Number(x.baseline||0).toFixed(2)}${esc(x.unit||'')}｜パフォーマンス ${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':'--'}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||customCoachNotice())}</div></article>`;
-  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(runningMenuSummary(x))}</strong><div class="meta">${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''}｜平均 ${timeFmt(x.averageTime)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(x.coach||'')}</div></article>`;
+  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(runningMenuSummary(x))}</strong><div class="meta">${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''}｜${trainingTimeText(x)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(x.coach||'')}</div></article>`;
 }
 async function removeTraining(id){ if(!confirm("この練習記録を削除しますか？"))return; await deleteRecord("trainings",Number(id)); toast("削除しました"); await refreshAll(); }
 async function renderMeets(){

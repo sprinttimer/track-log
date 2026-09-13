@@ -10,13 +10,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Track Log">
-  <link rel="manifest" href="./manifest.webmanifest?v=250">
+  <link rel="manifest" href="./manifest.webmanifest?v=260">
   <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32-v240.png">
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48-v240.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192-v240.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v240.png">
-  <link rel="stylesheet" href="./styles.css?v=250">
+  <link rel="stylesheet" href="./styles.css?v=260">
   <title>Track Log</title>
 </head>
 <body>
@@ -40,7 +40,7 @@
       </div>
       <div class="grid3">
         <article class="card stat"><span class="muted">直近7日の練習</span><strong id="weekSessions">0 回</strong></article>
-        <article class="card stat"><span class="muted">高強度走</span><strong id="weekHigh">0 回</strong></article>
+        <article class="card stat"><span class="muted">高負荷セッション</span><strong id="weekHigh">0 回</strong></article>
         <article class="card stat"><span class="muted">試合</span><strong id="weekRaces">0 回</strong></article>
       </div>
       <article class="card">
@@ -76,11 +76,12 @@
           </div>
           <div id="startingBlockHint" class="hidden menu-help-panel">
             <div class="custom-heading"><div><span class="pill blue">START</span><h3>スターティングブロック</h3></div></div>
-            <p class="muted">スターティングブロックからのスタート練習です。上の「距離」には、10m・20m・30m・60mなど今回計測する区間を入力してください。</p>
+            <p class="muted">スターティングブロックからのスタート練習です。上の「距離」には、10m・20m・30m・60mなど今回取り組んだ区間を入力してください。タイムを測っていない場合でも記録できます。</p>
           </div>
-          <fieldset><legend>記録方法</legend><div class="segmented"><label><input type="radio" name="mode" value="detail" checked>1本ずつ</label><label><input type="radio" name="mode" value="simple">平均のみ</label></div></fieldset>
-          <div id="detailTimesBlock"><div class="section-title compact"><h3>タイム</h3><span class="muted">12.34 または 1:52.40</span></div><div id="timeRows"></div></div>
-          <div id="simpleTimeBlock" class="hidden"><label>平均タイム<div class="with-unit"><input id="averageTime" type="text" inputmode="decimal" placeholder="12.34 / 1:52.40"><span>秒</span></div></label></div>
+          <fieldset><legend>タイム記録（任意）</legend><div class="segmented"><label><input type="radio" name="mode" value="detail" checked>1本ずつ</label><label><input type="radio" name="mode" value="simple">平均のみ</label></div></fieldset>
+          <p class="tiny-note">タイムは任意です。未計測・計測ミスでも、距離・本数・セット・RPE・疲労感から練習を保存・分析できます。タイムがない日は速度評価だけを行いません。</p>
+          <div id="detailTimesBlock"><div class="section-title compact"><h3>タイム（任意）</h3><span class="muted">12.34 または 1:52.40／空欄可</span></div><div id="timeRows"></div></div>
+          <div id="simpleTimeBlock" class="hidden"><label>平均タイム（任意）<div class="with-unit"><input id="averageTime" type="text" inputmode="decimal" placeholder="空欄でも保存できます"><span>秒</span></div></label></div>
           <div class="analysis-preview"><div><span>PB</span><strong id="pbPreview">未登録</strong></div><div><span>PB速度比</span><strong id="pbRatioPreview">--</strong></div><div><span>タイム低下</span><strong id="dropPreview">--</strong></div></div>
         </div>
 
@@ -133,7 +134,7 @@
           <div class="inline-3"><label>試合前の疲労感<input id="raceFatigueBefore" type="range" min="1" max="5" value="2"><span id="raceFatigueBeforeValue" class="range-value">2 / 5</span></label><label>試合後の疲労感<input id="raceFatigueAfter" type="range" min="1" max="5" value="4"><span id="raceFatigueAfterValue" class="range-value">4 / 5</span></label><label>RPE<input id="raceRpe" type="range" min="1" max="10" value="9"><span id="raceRpeValue" class="range-value">9 / 10</span></label></div>
         </div>
         <label>レースメモ<textarea id="raceNotes" rows="3" placeholder="スタート、展開、フォーム、天候など"></textarea></label>
-        <div class="section-title compact"><h3>試合前コンディション分析</h3><span class="pill">直前3日・7日</span></div><div id="raceAnalysisPreview" class="coach-message">保存すると、試合前3日・7日の負荷、疲労感、休養、高強度練習、通常値との比較をまとめます。</div>
+        <div class="section-title compact"><h3>試合前コンディション分析</h3><span class="pill">直前3日・7日</span></div><div id="raceAnalysisPreview" class="coach-message">保存すると、試合前3日・7日の負荷、疲労感、休養、高負荷セッション、通常値との比較をまとめます。</div>
         <button class="primary wide" type="submit">試合結果を保存</button>
       </form>
     </section>
@@ -175,12 +176,12 @@
 
       <article class="card"><div class="section-title"><h3>データ</h3><span id="appVersionLabel" class="pill"></span></div><div class="button-row"><button id="exportBtn2" class="secondary" type="button">JSONバックアップ</button><label class="file-label">復元<input id="importInput" type="file" accept="application/json"></label><button id="persistBtn" class="secondary" type="button">保存領域を保護</button></div><p class="tiny-note">記録はこの端末のブラウザ内に保存されます。端末変更やブラウザデータ削除に備えて定期的なバックアップを推奨します。</p></article>
 
-      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v250</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
+      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v260</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
     </section>
   </main>
 
   <nav class="bottom-nav"><button data-nav="homeView" class="active" type="button"><span>⌂</span>ホーム</button><button data-nav="historyView" type="button"><span>≡</span>日誌</button><button data-nav="entryView" class="nav-add" type="button"><span>＋</span>記録</button><button data-nav="calendarView" type="button"><span>▣</span>大会</button><button data-nav="settingsView" type="button"><span>⚙</span>設定</button></nav>
   <div id="toast" class="toast hidden"></div>
-  <script src="./db.js?v=250"></script><script src="./coach.js?v=250"></script><script src="./app.js?v=250"></script>
+  <script src="./db.js?v=260"></script><script src="./coach.js?v=260"></script><script src="./app.js?v=260"></script>
 </body>
 </html>

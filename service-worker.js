@@ -1,7 +1,7 @@
-const CACHE_NAME = "track-log-v2.5.0-20260913-r6";
+const CACHE_NAME = "track-log-v2.6.0-20260913-r7";
 const PRECACHE = [
-  "./","./index.html","./styles.css?v=250","./db.js?v=250","./coach.js?v=250","./app.js?v=250",
-  "./manifest.webmanifest?v=250",
+  "./","./index.html","./styles.css?v=260","./db.js?v=260","./coach.js?v=260","./app.js?v=260",
+  "./manifest.webmanifest?v=260",
   "./favicon.ico","./favicon-32-v240.png","./favicon-48-v240.png","./apple-touch-icon-v240.png",
   "./icon-192-v240.png","./icon-512-v240.png","./maskable-192-v240.png","./maskable-512-v240.png"
 ];

@@ -1,14 +1,19 @@
-const CACHE_NAME = "track-log-v2.3.0-20260913-r4";
+const CACHE_NAME = "track-log-v2.4.0-20260913-r5";
 const PRECACHE = [
-  "./","./index.html","./styles.css?v=230","./db.js?v=230","./coach.js?v=230","./app.js?v=230",
-  "./manifest.webmanifest?v=230",
-  "./icons/favicon-32-v230.png","./icons/favicon-48-v230.png","./icons/apple-touch-icon-v230.png",
-  "./icons/icon-192-v230.png","./icons/icon-512-v230.png","./icons/maskable-192-v230.png","./icons/maskable-512-v230.png"
+  "./","./index.html","./styles.css?v=240","./db.js?v=240","./coach.js?v=240","./app.js?v=240",
+  "./manifest.webmanifest?v=240",
+  "./favicon.ico","./favicon-32-v240.png","./favicon-48-v240.png","./apple-touch-icon-v240.png",
+  "./icon-192-v240.png","./icon-512-v240.png","./maskable-192-v240.png","./maskable-512-v240.png"
 ];
 self.addEventListener("install", event => {
   event.waitUntil((async()=>{
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(PRECACHE.map(x => new Request(x,{cache:"reload"})));
+    // Cache each file independently: one optional file can no longer abort the entire SW install.
+    await Promise.allSettled(PRECACHE.map(async x=>{
+      const req=new Request(x,{cache:"reload"});
+      const res=await fetch(req);
+      if(res && res.ok) await cache.put(req,res.clone());
+    }));
     await self.skipWaiting();
   })());
 });

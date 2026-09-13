@@ -1,5 +1,5 @@
-const APP_VERSION = "2.3.0-20260913";
-const BUILD_TAG = "230";
+const APP_VERSION = "2.4.0-20260913";
+const BUILD_TAG = "240";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const PB_EVENTS = [
@@ -328,6 +328,6 @@ async function checkRemoteVersion(auto=false){
 async function forceLatestReload(){ if(reloadingForUpdate)return; reloadingForUpdate=true; try{if(swReg){await swReg.update();if(swReg.waiting)swReg.waiting.postMessage({type:"SKIP_WAITING"});} const regs=await navigator.serviceWorker?.getRegistrations?.();if(regs)for(const r of regs)await r.update?.();}catch{} const base=location.href.split("?")[0].split("#")[0];location.replace(`${base}?fresh=${Date.now()}`); }
 async function updatePwaStatus(){
   const box=$("#pwaStatus"); if(!box)return; const secure=location.protocol==="https:"||location.hostname==="localhost",standalone=window.matchMedia("(display-mode: standalone)").matches||navigator.standalone,controlled=!!navigator.serviceWorker?.controller;
-  let iconOk=false; try{iconOk=await new Promise(resolve=>{const im=new Image();im.onload=()=>resolve(true);im.onerror=()=>resolve(false);im.src=`./icons/icon-192-v230.png?diag=${Date.now()}`;});}catch{}
-  box.innerHTML=`<div class="${secure?'diag-ok':'diag-warn'}">${secure?'✓':'!'} HTTPS / 安全なコンテキスト</div><div class="${controlled?'diag-ok':'diag-warn'}">${controlled?'✓':'!'} Service Worker ${controlled?'制御中':'初回読込後に有効化'}</div><div class="${iconOk?'diag-ok':'diag-warn'}">${iconOk?'✓':'!'} PWAアイコン v230 ${iconOk?'読込OK':'読込失敗'}</div><div class="${standalone?'diag-ok':''}">${standalone?'✓ インストール済み起動':'ブラウザ表示中'}</div>`;
+  let iconOk=false; try{iconOk=await new Promise(resolve=>{const im=new Image();im.onload=()=>resolve(true);im.onerror=()=>resolve(false);im.src=`./icon-192-v240.png?diag=${Date.now()}`;});}catch{}
+  box.innerHTML=`<div class="${secure?'diag-ok':'diag-warn'}">${secure?'✓':'!'} HTTPS / 安全なコンテキスト</div><div class="${controlled?'diag-ok':'diag-warn'}">${controlled?'✓':'!'} Service Worker ${controlled?'制御中':'初回読込後に有効化'}</div><div class="${iconOk?'diag-ok':'diag-warn'}">${iconOk?'✓':'!'} PWAアイコン v240（ルート直下） ${iconOk?'読込OK':'読込失敗'}</div><div class="${standalone?'diag-ok':''}">${standalone?'✓ インストール済み起動':'ブラウザ表示中'}</div>`;
 }

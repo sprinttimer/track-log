@@ -1,22 +1,25 @@
 {
-  "id": "./track-log",
+  "id": "./",
   "name": "Track Log - 陸上トレーニング日誌",
   "short_name": "Track Log",
-  "description": "陸上トラック競技に特化した練習日誌・パフォーマンス記録・簡易コーチ",
-  "start_url": "./index.html?source=pwa",
+  "description": "陸上トラック競技に特化した練習・試合記録、コンディション分析、簡易コーチ",
+  "start_url": "./?source=pwa&v=230",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#f5f0e8",
   "theme_color": "#f5f0e8",
   "orientation": "portrait-primary",
   "categories": ["sports", "health", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
-    {"src":"./icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
-    {"src":"./icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
-    {"src":"./icons/maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+    {"src":"./icons/icon-192-v230.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./icons/icon-512-v230.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"./icons/maskable-192-v230.png","sizes":"192x192","type":"image/png","purpose":"maskable"},
+    {"src":"./icons/maskable-512-v230.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
   ],
   "shortcuts": [
-    {"name":"練習を記録","short_name":"記録","url":"./index.html?source=shortcut#entry","icons":[{"src":"./icons/icon-192.png","sizes":"192x192"}]},
-    {"name":"大会予定","short_name":"大会","url":"./index.html?source=shortcut#calendar","icons":[{"src":"./icons/icon-192.png","sizes":"192x192"}]}
+    {"name":"活動を記録","short_name":"記録","url":"./?source=shortcut#entry","icons":[{"src":"./icons/icon-192-v230.png","sizes":"192x192","type":"image/png"}]},
+    {"name":"大会","short_name":"大会","url":"./?source=shortcut#calendar","icons":[{"src":"./icons/icon-192-v230.png","sizes":"192x192","type":"image/png"}]}
   ]
 }

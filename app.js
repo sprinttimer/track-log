@@ -1,5 +1,5 @@
-const APP_VERSION = "2.7.0-20260913";
-const BUILD_TAG = "270";
+const APP_VERSION = "2.8.0-20260913";
+const BUILD_TAG = "280";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const PB_EVENTS = [
@@ -11,6 +11,7 @@ const LEGACY_TRAINING_DISTANCES = [30,60,100,120,150,200,300,400,600,800,1000,15
 let profile = {age:18,eventGroup:"sprint",primaryEvent:"100m",pbs:{}};
 let customMenus = [], presets = [], weightPresets = [];
 let sessionItemsDraft = [];
+let editingTrainingId = null, editingTrainingCreatedAt = null, editingSessionItemIndex = null;
 let deferredPrompt = null, swReg = null, reloadingForUpdate = false;
 
 document.addEventListener("DOMContentLoaded", init);
@@ -195,27 +196,77 @@ function validateMenuDraft(d){
 function menuItemSummary(d){
   if(isWeightRecord(d))return `${d.weightExerciseName||"ウェイト"} ${d.weightKg||0}kg × ${d.weightReps||0}rep × ${d.weightSets||0}set`;
   if(isCustomRecord(d))return `${d.customMenuName||"カスタム"} ${d.representativeValue!=null?Number(d.representativeValue).toFixed(2)+(d.unit||""):""}`;
-  const main=runningMenuSummary(d), reps=`${d.reps||1}本${d.sets>1?` × ${d.sets}set`:""}`, t=Number(d.averageTime)>0?` / 平均 ${timeFmt(Number(d.averageTime))}`:" / タイム未計測";
+  const main=runningMenuSummary(d), reps=`${d.reps||1}本${d.sets>1?` × ${d.sets}set`:""}`, t=Number(d.averageTime)>0?` / 平均 ${timeFmt(Number(d.averageTime))}`:" / タイム未入力";
   return `${main} / ${reps}${t}`;
+}
+function cloneValue(v){ return typeof structuredClone==="function"?structuredClone(v):JSON.parse(JSON.stringify(v)); }
+function updateMenuEditorState(){
+  const editing=editingSessionItemIndex!=null;
+  $("#menuEditorTitle").textContent=editing?`練習内容 ${editingSessionItemIndex+1} を編集`:"練習内容を入力";
+  $("#menuEditorModeLabel").textContent=editing?"編集中":"1メニューずつ追加";
+  $("#addTrainingItemBtn").textContent=editing?"この練習内容を更新":"＋ この練習内容を追加";
+  $("#cancelMenuItemEditBtn").classList.toggle("hidden",!editing);
 }
 function renderSessionItemsDraft(){
   const box=$("#sessionItemsList"),count=$("#sessionItemCount"),clear=$("#clearTrainingItemsBtn"); if(!box)return;
   count.textContent=`${sessionItemsDraft.length}件追加済み`; clear.classList.toggle("hidden",!sessionItemsDraft.length);
-  box.innerHTML=sessionItemsDraft.length?sessionItemsDraft.map((x,i)=>`<div class="session-draft-item"><div><span class="session-draft-number">${i+1}</span><strong>${esc(menuItemSummary(x))}</strong></div><button type="button" class="delete-btn" onclick="removeSessionDraftItem(${i})">削除</button></div>`).join(""):'<div class="muted">まだ追加されていません。1つ目のメニューを入力し、下の「＋ この練習内容を追加」を押してください。</div>';
+  box.innerHTML=sessionItemsDraft.length?sessionItemsDraft.map((x,i)=>`<div class="session-draft-item ${editingSessionItemIndex===i?'editing':''}"><div><span class="session-draft-number">${i+1}</span><strong>${esc(menuItemSummary(x))}</strong></div><div class="setting-actions"><button type="button" class="small-btn" onclick="editSessionDraftItem(${i})">編集</button><button type="button" class="delete-btn" onclick="removeSessionDraftItem(${i})">削除</button></div></div>`).join(""):'<div class="muted">まだ追加されていません。1つ目のメニューを入力し、下の「＋ この練習内容を追加」を押してください。</div>';
+  updateMenuEditorState();
 }
-function removeSessionDraftItem(index){ sessionItemsDraft.splice(Number(index),1); renderSessionItemsDraft(); liveRecalc(); }
-function clearTrainingItemsDraft(){ if(!sessionItemsDraft.length)return; if(!confirm("追加済みの練習内容をすべて外しますか？"))return; sessionItemsDraft=[]; renderSessionItemsDraft(); liveRecalc(); }
+function removeSessionDraftItem(index){
+  index=Number(index); sessionItemsDraft.splice(index,1);
+  if(editingSessionItemIndex===index){ editingSessionItemIndex=null; resetMenuEditor(); }
+  else if(editingSessionItemIndex!=null&&index<editingSessionItemIndex) editingSessionItemIndex--;
+  renderSessionItemsDraft(); liveRecalc();
+}
+function clearTrainingItemsDraft(){ if(!sessionItemsDraft.length)return; if(!confirm("追加済みの練習内容をすべて外しますか？"))return; sessionItemsDraft=[]; editingSessionItemIndex=null; resetMenuEditor(); renderSessionItemsDraft(); liveRecalc(); }
 function resetMenuEditor(){
+  editingSessionItemIndex=null;
   $("#presetSelect").value=""; populateCategories(); $("#distance").value=""; $("#flyingApproachDistance").value=""; $("#reps").value=1; $("#sets").value=1; $("#restMin").value=""; $("#setRestMin").value=""; $("#averageTime").value=""; const mode=$('input[name="mode"][value="detail"]'); if(mode)mode.checked=true;
-  $("#customAttempts").value=1; $("#weightExerciseSelect").value=""; $("#weightExerciseName").value=""; $("#weightKg").value=""; $("#weightReps").value=5; $("#weightSets").value=3; renderTimeRows(false); renderCustomValueRows(false); toggleTrainingFields();
+  $("#customAttempts").value=1; $("#weightExerciseSelect").value=""; $("#weightExerciseName").value=""; $("#weightKg").value=""; $("#weightReps").value=5; $("#weightSets").value=3; renderTimeRows(false); renderCustomValueRows(false); toggleTrainingFields(); updateMenuEditorState();
 }
+function setCategoryForItem(item){
+  let value="";
+  if(isCustomRecord(item)) value=`custom:${item.customMenuId}`;
+  else if(isWeightRecord(item)) value="std:weights";
+  else value=`std:${item.category}`;
+  if([...$("#category").options].some(o=>o.value===value)) $("#category").value=value;
+  else return false;
+  toggleTrainingFields(); return true;
+}
+function loadMenuItemIntoEditor(item){
+  if(!setCategoryForItem(item)){ toast("この記録は現在のメニュー設定では直接編集できません"); return false; }
+  if(isWeightRecord(item)){
+    renderWeightPresetOptions(); $("#weightExerciseSelect").value=item.weightExerciseId||""; $("#weightExerciseName").value=item.weightExerciseName||""; $("#weightKg").value=item.weightKg??""; $("#weightReps").value=item.weightReps||1; $("#weightSets").value=item.weightSets||1;
+  }else if(isCustomRecord(item)){
+    const vals=Array.isArray(item.values)?item.values:[]; $("#customAttempts").value=Math.max(1,vals.length||1); renderCustomValueRows(false); $$(".custom-value").forEach((el,i)=>el.value=vals[i]??"");
+  }else{
+    $("#distance").value=item.distance??""; $("#flyingApproachDistance").value=item.approachDistance??""; $("#reps").value=item.reps||1; $("#sets").value=item.sets||1; $("#restMin").value=item.restMin??""; $("#setRestMin").value=item.setRestMin??"";
+    const detail=item.mode!=="simple"; const r=$(detail?'input[name="mode"][value="detail"]':'input[name="mode"][value="simple"]'); if(r)r.checked=true;
+    $("#detailTimesBlock").classList.toggle("hidden",!detail); $("#simpleTimeBlock").classList.toggle("hidden",detail); renderTimeRows(false);
+    if(detail){ const times=Array.isArray(item.times)?item.times:[]; $$(".rep-time").forEach((el,i)=>el.value=times[i]!=null?timeInputValue(Number(times[i])):""); }
+    else $("#averageTime").value=item.averageTime!=null?timeInputValue(Number(item.averageTime)):"";
+  }
+  return true;
+}
+async function editSessionDraftItem(index){
+  index=Number(index); const item=sessionItemsDraft[index]; if(!item)return;
+  editingSessionItemIndex=index; if(!loadMenuItemIntoEditor(item)){ editingSessionItemIndex=null; updateMenuEditorState(); return; }
+  renderSessionItemsDraft(); await liveRecalc(); document.querySelector(".menu-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function cancelSessionItemEdit(){ resetMenuEditor(); renderSessionItemsDraft(); liveRecalc(); }
 async function addTrainingItem(){
-  const d=currentMenuDraft(),err=validateMenuDraft(d); if(err)return toast(err);
-  sessionItemsDraft.push(typeof structuredClone==="function"?structuredClone(d):JSON.parse(JSON.stringify(d))); renderSessionItemsDraft(); resetMenuEditor(); toast("練習内容を追加しました。続けて次のメニューを入力できます"); await liveRecalc();
+  const d=currentMenuDraft(),err=validateMenuDraft(d); if(err)return toast(err); const copy=cloneValue(d);
+  if(editingSessionItemIndex!=null){ const idx=editingSessionItemIndex; sessionItemsDraft[idx]=copy; resetMenuEditor(); renderSessionItemsDraft(); toast("練習内容を更新しました"); }
+  else { sessionItemsDraft.push(copy); renderSessionItemsDraft(); resetMenuEditor(); toast("練習内容を追加しました。続けて次のメニューを入力できます"); }
+  await liveRecalc();
 }
 function buildSessionDraft(includeCurrent=true){
-  const common=currentSessionCommon(), items=[...sessionItemsDraft]; const current=currentMenuDraft();
-  if(includeCurrent&&!menuDraftIsEmpty(current))items.push(current);
+  const common=currentSessionCommon(), items=sessionItemsDraft.map(cloneValue), current=currentMenuDraft();
+  if(includeCurrent&&!menuDraftIsEmpty(current)){
+    if(editingSessionItemIndex!=null&&items[editingSessionItemIndex]) items[editingSessionItemIndex]=current;
+    else items.push(current);
+  }
   return{...common,recordType:"daily_session",subtype:"session",isSession:true,items};
 }
 async function liveRecalc(){
@@ -234,14 +285,31 @@ async function liveRecalc(){
   else { $("#liveCoach").textContent=buildCoachComment(d,history,profile,next); $("#liveCoach").classList.toggle("custom-note",d.isCustom||d.isWeight); }
 }
 async function saveTraining(e){
-  e.preventDefault(); const session=buildSessionDraft(true); if(!session.date)return toast("日付を入力してください");
-  if(!session.items.length)return toast("練習内容を1つ以上追加してください");
-  const history=await getAll("trainings"),meets=await getAll("meets"); session.coach=buildSessionCoachComment(session,history,profile,findNextMeet(meets,session.date)); session.createdAt=new Date().toISOString(); await addRecord("trainings",session);
-  toast(session.items.length>1?`${session.items.length}メニューを1日の練習として保存しました`:"この日の練習を保存しました"); resetTrainingForm(); await refreshAll(); navigate("homeView");
+  e.preventDefault();
+  if(editingSessionItemIndex!=null){ const err=validateMenuDraft(currentMenuDraft()); if(err)return toast(`編集中の練習内容を確認してください：${err}`); }
+  const session=buildSessionDraft(true); if(!session.date)return toast("日付を入力してください"); if(!session.items.length)return toast("練習内容を1つ以上追加してください");
+  const history=await getAll("trainings"),meets=await getAll("meets"),now=new Date().toISOString(),historyForCoach=editingTrainingId?history.filter(x=>Number(x.id)!==Number(editingTrainingId)):history;
+  session.coach=buildSessionCoachComment(session,historyForCoach,profile,findNextMeet(meets,session.date)); session.updatedAt=now;
+  if(editingTrainingId){ const existing=history.find(x=>Number(x.id)===Number(editingTrainingId)); session.id=Number(editingTrainingId); session.createdAt=existing?.createdAt||editingTrainingCreatedAt||now; await putRecord("trainings",session); toast("練習記録を更新しました。タイムなどの変更を反映して簡易診断も再計算しました"); }
+  else { session.createdAt=now; await addRecord("trainings",session); toast(session.items.length>1?`${session.items.length}メニューを1日の練習として保存しました`:"この日の練習を保存しました"); }
+  const wasEditing=editingTrainingId!=null; resetTrainingForm(); await refreshAll(); navigate(wasEditing?"historyView":"homeView");
+}
+function updateTrainingEditState(){
+  const editing=editingTrainingId!=null; $("#trainingEditBanner").classList.toggle("hidden",!editing); $("#trainingSubmitBtn").textContent=editing?"編集内容を保存して診断を更新":"この日の練習をまとめて保存";
 }
 function resetTrainingForm(){
-  sessionItemsDraft=[]; $("#trainingForm").reset(); $("#trainingDate").value=todayISO(); $("#reps").value=1; $("#sets").value=1; $("#customAttempts").value=1; $("#weightReps").value=5; $("#weightSets").value=3; $("#fatigueBefore").value=2; $("#fatigueAfter").value=3; $("#fatigueBeforeValue").textContent="2 / 5"; $("#fatigueAfterValue").textContent="3 / 5"; populateCategories(); renderTimeRows(false); renderCustomValueRows(false); renderSessionItemsDraft();
+  sessionItemsDraft=[]; editingTrainingId=null; editingTrainingCreatedAt=null; editingSessionItemIndex=null; $("#trainingForm").reset(); $("#trainingDate").value=todayISO(); $("#reps").value=1; $("#sets").value=1; $("#customAttempts").value=1; $("#weightReps").value=5; $("#weightSets").value=3; $("#fatigueBefore").value=2; $("#fatigueAfter").value=3; $("#fatigueBeforeValue").textContent="2 / 5"; $("#fatigueAfterValue").textContent="3 / 5"; $("#advancedFields").classList.add("hidden"); populateCategories(); renderTimeRows(false); renderCustomValueRows(false); renderSessionItemsDraft(); updateTrainingEditState();
 }
+function legacyTrainingItem(record){
+  const skip=new Set(["id","activityType","date","fatigueBefore","fatigueAfter","fatigue","durationMin","notes","coach","createdAt","updatedAt","recordType","isSession"]),item={}; Object.keys(record||{}).forEach(k=>{if(!skip.has(k))item[k]=cloneValue(record[k]);}); return item;
+}
+async function startEditTraining(id){
+  const all=await getAll("trainings"),record=all.find(x=>Number(x.id)===Number(id)); if(!record)return toast("編集する記録が見つかりませんでした");
+  resetTrainingForm(); editingTrainingId=Number(record.id); editingTrainingCreatedAt=record.createdAt||null; sessionItemsDraft=(isDailySession(record)?record.items:[legacyTrainingItem(record)]).map(cloneValue);
+  $("#trainingDate").value=record.date||todayISO(); $("#fatigueBefore").value=Number(record.fatigueBefore||record.fatigue||2); $("#fatigueAfter").value=Number(record.fatigueAfter||record.fatigue||3); $("#fatigueBeforeValue").textContent=`${$("#fatigueBefore").value} / 5`; $("#fatigueAfterValue").textContent=`${$("#fatigueAfter").value} / 5`; $("#durationMin").value=record.durationMin??""; $("#notes").value=record.notes||"";
+  if(record.durationMin||record.notes) $("#advancedFields").classList.remove("hidden"); renderSessionItemsDraft(); updateTrainingEditState(); navigate("entryView"); selectActivity("training"); await liveRecalc(); window.scrollTo({top:0,behavior:"smooth"});
+}
+function cancelTrainingEdit(){ if(!editingTrainingId)return; if(!confirm("編集中の変更を破棄しますか？"))return; resetTrainingForm(); navigate("historyView"); }
 
 function windSensitive(event){ return ["100m","200m","100mH","110mH"].includes(event); }
 function currentRaceDraft(){
@@ -328,7 +396,8 @@ async function renderHome(){
   const activities=[...all.map(x=>({...x,_type:isDailySession(x)?"session":"training"})),...meets.filter(x=>x.status==="completed").map(x=>({...x,_type:"race"}))].sort((a,b)=>b.date.localeCompare(a.date)||(b.id||0)-(a.id||0)); $("#recentList").classList.toggle("empty",!activities.length); $("#recentList").innerHTML=activities.length?activities.slice(0,5).map(activityRow).join(""):"まだ記録がありません。";
 }
 function fatigueText(x){ const b=Number(x.fatigueBefore||x.fatigue||0),a=Number(x.fatigueAfter||x.fatigue||0); return b&&a?`${b}→${a}/5`:b?`${b}/5`:"--"; }
-function trainingTimeText(x){ return Number.isFinite(Number(x.averageTime))&&Number(x.averageTime)>0?`平均 ${timeFmt(Number(x.averageTime))}`:"タイム 未計測"; }
+function trainingTimeText(x){ return Number.isFinite(Number(x.averageTime))&&Number(x.averageTime)>0?`平均 ${timeFmt(Number(x.averageTime))}`:"タイム未入力"; }
+function missingTimeCount(x){ return sessionItems(x).filter(i=>isRunningRecord(i)&&!(Number.isFinite(Number(i.averageTime))&&Number(i.averageTime)>0)).length; }
 function runningMenuSummary(x){
   const label=CATEGORY_LABELS[x.category]||x.category||"練習",dist=x.distance?`${x.distance}m`:"";
   if(x.category==="flying"&&x.approachDistance) return `${label} 助走${x.approachDistance}m→計測${dist}`;
@@ -361,10 +430,10 @@ function historyCard(x){
   if(x._type==="race"){
     const a=x.racePreparationAnalysis?.text||x.preRaceAnalysis?.text||"試合前分析は旧データのためありません。";return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill red">試合</span> ${esc(x.name)} ${esc(x.event)}</strong><div class="meta">${timeFmt(x.resultSeconds)}${x.place?`｜${x.place}位`:''}${x.wind!=null?`｜風 ${x.wind>0?'+':''}${x.wind}m/s`:''}${x.isPB?'｜NEW PB':''}${x.windAssisted?'｜追い風参考':''}</div></div><button class="delete-btn" onclick="removeMeet(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message race-note">${esc(a)}</div></article>`;
   }
-  if(isDailySession(x))return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">1日の練習</span> ${x.items.length}メニュー</strong><div class="meta">疲労 ${fatigueText(x)}${x.durationMin?`｜練習時間 ${x.durationMin}分`:''}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">この日を削除</button></div><div class="session-history-list">${sessionItems(x).map(sessionItemLine).join('')}</div>${x.notes?`<div class="meta top-gap">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message top-gap">${esc(x.coach||buildSessionCoachComment(x,[],profile,null))}</div></article>`;
-  if(x._type==="weight")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||'ウェイト')}</strong><div class="meta">${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜総ボリューム ${Math.round(x.weightVolume||0)}kg｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||weightCoachNotice())}</div></article>`;
-  if(x._type==="custom")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill accent">カスタム</span> ${esc(x.customMenuName||'カスタム')}</strong><div class="meta">代表値 ${Number(x.representativeValue||0).toFixed(2)}${esc(x.unit||'')}｜基準 ${Number(x.baseline||0).toFixed(2)}${esc(x.unit||'')}｜パフォーマンス ${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':'--'}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||customCoachNotice())}</div></article>`;
-  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(runningMenuSummary(x))}</strong><div class="meta">${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''}｜${trainingTimeText(x)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(x.coach||'')}</div></article>`;
+  if(isDailySession(x)){ const missing=missingTimeCount(x); return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">1日の練習</span> ${x.items.length}メニュー ${missing?`<span class="pill warn">タイム未入力 ${missing}件</span>`:''}</strong><div class="meta">疲労 ${fatigueText(x)}${x.durationMin?`｜練習時間 ${x.durationMin}分`:''}${x.updatedAt?`｜最終更新 ${new Date(x.updatedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}`:''}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">この日を削除</button></div></div><div class="session-history-list">${sessionItems(x).map(sessionItemLine).join('')}</div>${x.notes?`<div class="meta top-gap">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message top-gap">${esc(x.coach||buildSessionCoachComment(x,[],profile,null))}</div></article>`; }
+  if(x._type==="weight")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||'ウェイト')}</strong><div class="meta">${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜総ボリューム ${Math.round(x.weightVolume||0)}kg｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||weightCoachNotice())}</div></article>`;
+  if(x._type==="custom")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill accent">カスタム</span> ${esc(x.customMenuName||'カスタム')}</strong><div class="meta">代表値 ${Number(x.representativeValue||0).toFixed(2)}${esc(x.unit||'')}｜基準 ${Number(x.baseline||0).toFixed(2)}${esc(x.unit||'')}｜パフォーマンス ${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':'--'}｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||customCoachNotice())}</div></article>`;
+  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(runningMenuSummary(x))} ${missingTimeCount(x)?'<span class="pill warn">タイム未入力</span>':''}</strong><div class="meta">${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''}｜${trainingTimeText(x)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(x.coach||'')}</div></article>`;
 }
 async function removeTraining(id){ if(!confirm("この練習記録を削除しますか？"))return; await deleteRecord("trainings",Number(id)); toast("削除しました"); await refreshAll(); }
 async function renderMeets(){
@@ -377,7 +446,7 @@ async function renderMeets(){
 }
 
 async function exportData(){
-  const data={version:5,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),profile,customMenus,presets,weightPresets,trainings:await getAll("trainings"),meets:await getAll("meets")},name=`track-log-backup-${todayISO()}.json`,json=JSON.stringify(data,null,2),file=new File([json],name,{type:"application/json"});
+  const data={version:6,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),profile,customMenus,presets,weightPresets,trainings:await getAll("trainings"),meets:await getAll("meets")},name=`track-log-backup-${todayISO()}.json`,json=JSON.stringify(data,null,2),file=new File([json],name,{type:"application/json"});
   const mobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
   if(mobile&&navigator.share&&navigator.canShare?.({files:[file]})){
     try{await navigator.share({files:[file],title:"Track Log バックアップ",text:"機種変更・復元用のバックアップファイルです。Google Drive / iCloud Drive / ファイル等へ保存してください。"});toast("バックアップの共有・保存画面を開きました");return;}catch(err){if(err?.name==="AbortError")return;}

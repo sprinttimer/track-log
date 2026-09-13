@@ -179,7 +179,10 @@ function buildSessionCoachComment(session,history=[],profile={},nextMeet=null){
   }
   const totalVol=sum(run.map(runningVolume));
   if(totalVol>0){ const t=totalVol>=1000?`${(totalVol/1000).toFixed(totalVol%1000===0?0:1)}km`:`${Math.round(totalVol)}m`; parts.push(`ランニング系メニューの合計走行量は${t}です。短い距離と長い距離を組み合わせた場合も、この合計と各メニューの質を分けて見ています。`); }
-  const highItems=run.filter(isHighLoadItem), timed=run.filter(x=>Number(x.averageTime)>0), ratios=timed.map(x=>Number(x.pbRatio)).filter(Number.isFinite), bestRatio=ratios.length?Math.max(...ratios):null;
+  const timed=run.filter(x=>Number(x.averageTime)>0), untimed=run.filter(x=>!(Number(x.averageTime)>0));
+  if(untimed.length&&timed.length===0) parts.push(`ランニング${untimed.length}メニューはタイム未入力です。現在は距離・本数・セット・前後疲労を中心に判定しています。活動日誌の「編集」から後でタイムを追加すると、PB速度比や反復低下を含めて診断を再計算します。`);
+  else if(untimed.length) parts.push(`ランニング${untimed.length}メニューはタイム未入力のため、その部分は走行量と疲労反応を中心に評価しています。後からタイムを追加すると診断内容も更新されます。`);
+  const highItems=run.filter(isHighLoadItem), ratios=timed.map(x=>Number(x.pbRatio)).filter(Number.isFinite), bestRatio=ratios.length?Math.max(...ratios):null;
   if(highItems.length>=2) parts.push(`高負荷と判定されるランニングメニューが${highItems.length}種類あります。1日の総負荷が高くなりやすいため、翌日の練習前疲労を確認してください。`);
   else if(highItems.length===1) parts.push("高負荷と判定されるランニングメニューが1種類含まれています。ほかのメニューとの組み合わせも含めて1日単位で回復を見てください。");
   if(bestRatio!=null&&bestRatio>=93) parts.push(`タイムを入力したメニューの中では最大PB速度比${bestRatio.toFixed(1)}%で、高い速度域の刺激が入っています。`);

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f0e8">
+  <meta name="description" content="陸上トラック競技に特化した、オフライン対応の練習日誌・パフォーマンス記録・簡易コーチPWA">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Track Log">
+  <link rel="manifest" href="./manifest.webmanifest?v=20260913r3">
+  <link rel="icon" sizes="48x48" href="./icons/favicon-48.png?v=20260913r3">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png?v=20260913r3">
+  <link rel="stylesheet" href="./styles.css?v=20260913r3">
+  <title>Track Log</title>
+</head>
+<body>
+  <div id="launchScreen" class="launch-screen" aria-hidden="true">
+    <img src="./icons/icon-512.png?v=20260913r3" alt="">
+    <strong>TRACK LOG</strong>
+    <span>RUN · RECORD · IMPROVE</span>
+  </div>
+
+  <header class="app-header">
+    <div class="brand-row">
+      <img class="brand-icon" src="./icons/icon-192.png?v=20260913r3" alt="Track Log">
+      <div><div class="eyebrow">TRACK TRAINING LOG</div><h1>Track Log</h1></div>
+    </div>
+    <button id="installBtn" class="ghost hidden" type="button">ホーム画面に追加</button>
+  </header>
+
+  <div id="updateBanner" class="banner hidden">
+    <span>最新版を検出しました。更新します。</span>
+    <button id="updateBtn" type="button">今すぐ更新</button>
+  </div>
+
+  <main>
+    <section id="homeView" class="view active">
+      <div class="hero card">
+        <div><div class="muted">今日</div><h2 id="todayLabel">--</h2><p id="homeSummary">練習記録を追加すると、ここに週間サマリーが表示されます。</p></div>
+        <button class="primary" data-nav="entryView" type="button">＋ 練習を記録</button>
+      </div>
+      <div class="grid2">
+        <article class="card stat"><span class="muted">今週の練習</span><strong id="weekSessions">0 回</strong></article>
+        <article class="card stat"><span class="muted">標準メニュー高強度</span><strong id="weekHigh">0 回</strong></article>
+      </div>
+      <article class="card"><div class="section-title"><h3>今週の簡易コーチ</h3><span class="pill">標準メニューのみ</span></div><div id="weeklyCoach" class="coach-message">記録が増えると週間傾向を自動分析します。</div></article>
+      <article class="card"><div class="section-title"><h3>次の大会</h3><button class="link-btn" data-nav="calendarView" type="button">予定を管理</button></div><div id="nextMeet">大会予定はまだありません。</div></article>
+      <article class="card"><div class="section-title"><h3>最近の練習</h3><button class="link-btn" data-nav="historyView" type="button">すべて見る</button></div><div id="recentList" class="list empty">まだ練習記録がありません。</div></article>
+    </section>
+
+    <section id="entryView" class="view">
+      <div class="page-title"><div><div class="eyebrow">TRAINING ENTRY</div><h2>練習を記録</h2></div></div>
+      <form id="trainingForm" class="card form-grid">
+        <label>日付<input id="trainingDate" name="date" type="date" required></label>
+
+        <label>よく使う入力プリセット
+          <select id="presetSelect"><option value="">プリセットを使わない</option></select>
+        </label>
+
+        <label>練習メニュー
+          <select id="category" name="category" required></select>
+        </label>
+
+        <div id="standardFields">
+          <div class="inline-3">
+            <label>距離<div class="with-unit"><input id="distance" name="distance" type="number" min="1" step="1" inputmode="numeric"><span>m</span></div></label>
+            <label>本数<div class="with-unit"><input id="reps" name="reps" type="number" min="1" max="100" step="1" value="1"><span>本</span></div></label>
+            <label>セット<div class="with-unit"><input id="sets" name="sets" type="number" min="1" max="20" step="1" value="1"><span>set</span></div></label>
+          </div>
+
+          <fieldset><legend>記録方法</legend><div class="segmented"><label><input type="radio" name="mode" value="detail" checked>1本ずつ</label><label><input type="radio" name="mode" value="simple">平均のみ</label></div></fieldset>
+          <div id="detailTimesBlock"><div class="section-title compact"><h3>タイム</h3><span class="muted">本数・セットに合わせて自動生成</span></div><div id="timeRows"></div></div>
+          <div id="simpleTimeBlock" class="hidden"><label>平均タイム<div class="with-unit"><input id="averageTime" type="number" min="0" step="0.01" inputmode="decimal"><span>秒</span></div></label></div>
+          <div class="analysis-preview"><div><span>PB</span><strong id="pbPreview">未登録</strong></div><div><span>PB速度比</span><strong id="pbRatioPreview">--</strong></div><div><span>タイム低下</span><strong id="dropPreview">--</strong></div></div>
+        </div>
+
+        <div id="customFields" class="hidden custom-panel">
+          <div class="custom-heading"><div><span class="pill accent">カスタム</span><h3 id="customMenuTitle">カスタムメニュー</h3></div><span class="pill">コーチ評価対象外</span></div>
+          <p class="muted">このメニューの内容・基準比はユーザー独自定義のため簡易コーチ評価には使用しません。基準値とのパフォーマンス比較と履歴保存は行い、練習前後の疲労感だけはコンディション情報として参照します。</p>
+          <div class="inline-2">
+            <label>回数<div class="with-unit"><input id="customAttempts" type="number" min="1" max="60" step="1" value="1"><span>回</span></div></label>
+            <label>基準値<div class="with-unit"><input id="customBaselineDisplay" type="number" readonly><span id="customBaselineUnit">--</span></div></label>
+          </div>
+          <div class="section-title compact"><h3>今回の記録</h3><span id="customDirectionHint" class="muted"></span></div>
+          <div id="customValueRows"></div>
+          <div class="analysis-preview"><div><span>今回の代表値</span><strong id="customRepresentative">--</strong></div><div><span>基準値</span><strong id="customBaselinePreview">--</strong></div><div><span>パフォーマンス</span><strong id="customPerformancePreview">--</strong></div></div>
+        </div>
+
+        <div class="condition-panel">
+          <div class="section-title compact"><h3>コンディション</h3><span class="pill">簡易コーチに反映</span></div>
+          <div class="inline-3">
+            <label>練習前の疲労感<input id="fatigueBefore" type="range" min="1" max="5" value="2"><span id="fatigueBeforeValue" class="range-value">2 / 5</span></label>
+            <label>練習後の疲労感<input id="fatigueAfter" type="range" min="1" max="5" value="3"><span id="fatigueAfterValue" class="range-value">3 / 5</span></label>
+            <label>RPE（今回のきつさ）<input id="rpe" type="range" min="1" max="10" value="5"><span id="rpeValue" class="range-value">5 / 10</span></label>
+          </div>
+          <p class="tiny-note">疲労感は本人の主観です。標準メニューでは練習内容と合わせて評価し、カスタムメニューではメニュー自体は評価せず、コンディション情報のみコメントに利用します。</p>
+        </div>
+
+        <button id="detailToggle" class="secondary" type="button">＋ 詳細情報</button>
+        <div id="advancedFields" class="hidden advanced">
+          <div class="inline-2"><label>本間レスト<div class="with-unit"><input id="restMin" type="number" min="0" step="0.5" inputmode="decimal"><span>分</span></div></label><label>セット間<div class="with-unit"><input id="setRestMin" type="number" min="0" step="0.5" inputmode="decimal"><span>分</span></div></label></div>
+          <label>メモ<textarea id="notes" rows="3" placeholder="感覚、天候、フォーム、補強内容など"></textarea></label>
+        </div>
+        <div id="liveCoach" class="coach-message soft">入力内容に応じて、ここに簡易コーチのプレビューが表示されます。</div>
+        <button class="primary wide" type="submit">保存する</button>
+      </form>
+    </section>
+
+    <section id="historyView" class="view">
+      <div class="page-title"><div><div class="eyebrow">TRAINING LOG</div><h2>練習日誌</h2></div><button id="exportBtn" class="ghost" type="button">バックアップ</button></div>
+      <div class="card filters"><select id="historyCategoryFilter"><option value="">すべてのメニュー</option></select><input id="historySearch" type="search" placeholder="距離・メモ・メニュー名を検索"></div>
+      <div id="historyList" class="stack empty">まだ練習記録がありません。</div>
+    </section>
+
+    <section id="calendarView" class="view">
+      <div class="page-title"><div><div class="eyebrow">RACE SCHEDULE</div><h2>大会スケジュール</h2></div></div>
+      <form id="meetForm" class="card form-grid"><div class="inline-2"><label>大会名<input id="meetName" required placeholder="例：県記録会"></label><label>日付<input id="meetDate" type="date" required></label></div><label>出場種目<input id="meetEvent" placeholder="例：100m / 200m"></label><button class="primary" type="submit">大会を追加</button></form>
+      <div id="meetList" class="stack"></div>
+    </section>
+
+    <section id="settingsView" class="view">
+      <div class="page-title"><div><div class="eyebrow">PROFILE & DATA</div><h2>設定</h2></div></div>
+      <form id="profileForm" class="card form-grid">
+        <div class="inline-2"><label>年齢<input id="age" type="number" min="6" max="100" required></label><label>専門区分<select id="eventGroup"><option value="sprint">短距離</option><option value="middle">中距離</option><option value="long">長距離</option><option value="hurdles">ハードル</option></select></label></div>
+        <label>主な専門種目<select id="primaryEvent"><option>60m</option><option selected>100m</option><option>200m</option><option>400m</option><option>800m</option><option>1500m</option><option>3000m</option><option>5000m</option><option>10000m</option><option>100mH</option><option>110mH</option><option>400mH</option></select></label>
+        <div><div class="section-title compact"><h3>自己ベスト</h3><span class="muted">同じ距離の練習でPB速度比を自動計算</span></div><div id="pbEditor" class="pb-grid"></div></div>
+        <button class="primary" type="submit">プロフィールを保存</button>
+      </form>
+
+      <article class="card">
+        <div class="section-title"><h3>よく使う入力プリセット</h3><span class="pill">標準メニュー</span></div>
+        <p class="muted">例：300m×3 / R=8分など。標準メニューを素早く入力するためのプリセットで、簡易コーチ評価対象です。</p>
+        <form id="presetForm" class="mini-form">
+          <label>プリセット名<input id="presetName" required placeholder="例：300m×3 スピード持久"></label>
+          <div class="inline-2"><label>標準メニュー<select id="presetCategory"></select></label><label>距離<div class="with-unit"><input id="presetDistance" type="number" min="1" required><span>m</span></div></label></div>
+          <div class="inline-3"><label>本数<input id="presetReps" type="number" min="1" value="3"></label><label>セット<input id="presetSets" type="number" min="1" value="1"></label><label>レスト(分)<input id="presetRest" type="number" min="0" step="0.5"></label></div>
+          <label class="check-row"><input id="presetFavorite" type="checkbox"> ★ お気に入りとして上位表示</label>
+          <button class="secondary" type="submit">プリセットを追加</button>
+        </form>
+        <div id="presetList" class="settings-list"></div>
+      </article>
+
+      <article class="card">
+        <div class="section-title"><h3>カスタム練習メニュー</h3><span class="pill">独自メニュー</span></div>
+        <p class="muted">地域・学校・チーム独自のメニューを追加できます。基準値との±％は計算しますが、メニュー内容・負荷・基準比は簡易コーチ評価には使用しません。練習前後の疲労感だけは本人のコンディション情報として参照します。</p>
+        <form id="customMenuForm" class="mini-form">
+          <label>メニュー名<input id="customMenuName" required placeholder="例：芝生往復走 / メディシンボール前方投げ"></label>
+          <div class="inline-2"><label>測定タイプ<select id="customMetricType"><option value="time">時間</option><option value="distance">距離</option></select></label><label>基準値<input id="customBaseline" type="number" min="0" step="0.01" required></label></div>
+          <div class="inline-2"><label>単位<select id="customUnit"><option value="秒">秒</option><option value="m">m</option></select></label><label>評価方向<select id="customEvaluationDirection"><option value="lower">小さいほど高パフォーマンス</option><option value="higher">大きいほど高パフォーマンス</option></select></label></div>
+          <label>比較方法<select id="customCompareMode"><option value="best">ベスト値</option><option value="average">平均値</option></select></label>
+          <p class="tiny-note">時間は初期設定が「短いほど高評価」、距離は「長いほど高評価」です。体幹保持など、長く続けるほど高評価になる時間種目は「大きいほど高パフォーマンス」に変更できます。</p>
+          <label class="check-row"><input id="customFavorite" type="checkbox"> ★ お気に入りとして上位表示</label>
+          <button class="secondary" type="submit">カスタムメニューを追加</button>
+        </form>
+        <div id="customMenuList" class="settings-list"></div>
+      </article>
+
+      <article class="card">
+        <h3>データ管理</h3><p class="muted">データはこの端末内のIndexedDBに保存します。端末変更・ブラウザデータ削除に備え、定期的にバックアップしてください。</p>
+        <div class="button-row"><button id="exportBtn2" class="secondary" type="button">JSONを書き出す</button><label class="secondary file-label">JSONを復元<input id="importInput" type="file" accept="application/json"></label><button id="persistBtn" class="secondary" type="button">端末保存を保護</button></div>
+      </article>
+
+      <article class="card">
+        <div class="section-title"><h3>ホーム画面・ブックマーク</h3><span id="appVersionLabel" class="pill">--</span></div>
+        <div id="installHelp" class="muted">端末・ブラウザを確認しています。</div>
+        <div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">ホーム画面に追加</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div>
+        <p class="tiny-note">※ブラウザの「お気に入り／ブックマーク」登録画面そのものをWebアプリから強制表示することはできません。そのため端末別の手順を表示します。PWA対応ブラウザではホーム画面追加を優先できます。</p>
+      </article>
+    </section>
+  </main>
+
+  <nav class="bottom-nav"><button data-nav="homeView" class="active" type="button"><span>⌂</span>ホーム</button><button data-nav="historyView" type="button"><span>≡</span>日誌</button><button data-nav="entryView" class="nav-add" type="button"><span>＋</span>記録</button><button data-nav="calendarView" type="button"><span>▣</span>大会</button><button data-nav="settingsView" type="button"><span>⚙</span>設定</button></nav>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="./db.js?v=20260913r3"></script>
+  <script src="./coach.js?v=20260913r3"></script>
+  <script src="./app.js?v=20260913r3"></script>
+</body>
+</html>

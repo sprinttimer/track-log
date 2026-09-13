@@ -1,0 +1,7 @@
+const CACHE_NAME="track-log-v2.2.0-20260913";
+const ASSETS=["./","./index.html","./styles.css?v=20260913r3","./db.js?v=20260913r3","./coach.js?v=20260913r3","./app.js?v=20260913r3","./manifest.webmanifest?v=20260913r3","./version.json","./icons/icon-192.png?v=20260913r3","./icons/icon-512.png?v=20260913r3","./icons/apple-touch-icon-180.png?v=20260913r3"];
+self.addEventListener("install",event=>{event.waitUntil((async()=>{const c=await caches.open(CACHE_NAME);await c.addAll(ASSETS.map(x=>new Request(x,{cache:"reload"})));await self.skipWaiting()})())});
+self.addEventListener("activate",event=>{event.waitUntil((async()=>{for(const k of await caches.keys())if(k!==CACHE_NAME)await caches.delete(k);await self.clients.claim()})())});
+async function networkFirst(request){try{const fresh=await fetch(request,{cache:"no-store"});if(fresh&&fresh.ok){const c=await caches.open(CACHE_NAME);c.put(request,fresh.clone())}return fresh}catch{const cached=await caches.match(request,{ignoreSearch:false});if(cached)return cached;if(request.mode==="navigate")return caches.match("./index.html");return Response.error()}}
+self.addEventListener("fetch",event=>{if(event.request.method!=="GET")return;const url=new URL(event.request.url);if(url.origin!==self.location.origin)return;event.respondWith(networkFirst(event.request))});
+self.addEventListener("message",event=>{if(event.data?.type==="SKIP_WAITING")self.skipWaiting()});

@@ -1,6 +1,6 @@
 const CATEGORY_GROUPS = {
   sprint: [
-    ["short_dash","ショートダッシュ"],["acceleration","加速走"],["flying","フライング"],["speed","スピード"],
+    ["short_dash","ショートダッシュ"],["starting_blocks","スターティングブロック"],["acceleration","加速走"],["flying","フライング走（最高速度区間）"],["speed","スピード"],
     ["speed_endurance","スピード持久"],["tempo","テンポ走"],["hill","坂ダッシュ"],["hurdle_drill","ハードル技術"],
     ["jog","ジョグ"],["weights","ウェイト"],["other","その他"]
   ],
@@ -15,7 +15,7 @@ const CATEGORY_GROUPS = {
     ["weights","ウェイト"],["other","その他"]
   ],
   hurdles: [
-    ["hurdle_drill","ハードル技術"],["short_dash","ショートダッシュ"],["acceleration","加速走"],["speed","スピード"],
+    ["hurdle_drill","ハードル技術"],["short_dash","ショートダッシュ"],["starting_blocks","スターティングブロック"],["acceleration","加速走"],["flying","フライング走（最高速度区間）"],["speed","スピード"],
     ["speed_endurance","スピード持久"],["tempo","テンポ走"],["jog","ジョグ"],["weights","ウェイト"],["other","その他"]
   ]
 };
@@ -84,8 +84,9 @@ function buildCoachComment(current,history=[],profile={},nextMeet=null){
   const cat=current.category;
   const categoryPhrases={
     short_dash:["短いダッシュはタイムだけでなく、最初の数歩の姿勢と接地位置も記録すると比較しやすくなります。","短距離の最高出力系では、フォームが崩れる前に終えることも練習品質の一部です。"],
-    acceleration:["加速走は最初の数歩から中盤までのつながりをメモしておくと、タイム変化の理由を追いやすくなります。","加速練習ではレスト不足で速度が落ちていないかも確認してください。"],
-    flying:["フライング走は助走条件を揃えると、回ごとの比較精度が上がります。","最高速度区間の比較では、助走距離を毎回そろえることが重要です。"],
+    starting_blocks:["スターティングブロック練習では、号砲後の最初の数歩と加速へのつながりを記録すると比較しやすくなります。","ブロックスタートは1本ごとの質を優先し、疲労で姿勢や押し出しが崩れる前に終了することも重要です。"],
+    acceleration:["加速走は静止または低速から速度を高めていく区間そのものを重視する練習です。最初の数歩から中盤までのつながりをメモしておくと、タイム変化の理由を追いやすくなります。","加速練習ではレスト不足で速度が落ちていないかも確認してください。"],
+    flying:["フライング走は、助走・加速後の最高速度区間を計測する練習です。加速走とは分けて記録し、助走距離と計測距離を毎回そろえると比較精度が上がります。","最高速度区間の比較では、助走距離と計測距離の条件を固定することが重要です。"],
     speed:["速度練習では、タイムだけでなくフォームが崩れる前に終了することも重要です。","最高速度系は十分なレストで1本の質を守る方が目的に合いやすいです。"],
     speed_endurance:["スピード持久では、終盤のタイム低下とフォーム維持をセットで評価すると進歩が見えやすくなります。","スピード持久は負荷が高くなりやすいため、翌日の開始前疲労を確認してください。"],
     interval:["インターバルは平均だけでなく、最速・最遅・後半低下を見ると設定の適否を判断しやすくなります。","インターバルではレスト条件を固定すると過去比較がしやすくなります。"],
@@ -95,6 +96,7 @@ function buildCoachComment(current,history=[],profile={},nextMeet=null){
     long_run:["ロング走は1回のペースだけでなく、週全体の疲労感と合わせて評価してください。","長い走行の翌日に開始前疲労が残るかを追うと、適量を見つけやすくなります。"]
   };
   if(categoryPhrases[cat]) parts.push(pick(categoryPhrases[cat],seed+8));
+  if(cat==="flying"&&Number(current.approachDistance)>0) parts.push(`今回は助走${Number(current.approachDistance)}m→計測${Number(current.distance)||0}mとして記録されています。今後も同じ助走条件で比較すると最高速度区間の変化を追いやすくなります。`);
   if(nextMeet){ const gap=daysBetween(current.date,nextMeet.date); if(gap>=0&&gap<=3&&ratio>=93) parts.push(`次の大会まで${gap}日です。試合直前の高強度なので、ここからの追加負荷は慎重にしてください。`); else if(gap>=4&&gap<=7&&ratio>=93) parts.push(`次の大会まで${gap}日です。今回の高強度刺激から疲労が抜けるか、練習前疲労の推移を確認してください。`); }
   const band=ageBand(Number(profile.age||18));
   if(["youth","junior"].includes(band)&&rpe>=9) parts.push("成長期では高い主観負荷を連日重ねないよう、指導者と回復状況を共有してください。");

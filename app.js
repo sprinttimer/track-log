@@ -1,5 +1,5 @@
-const APP_VERSION = "2.4.0-20260913";
-const BUILD_TAG = "240";
+const APP_VERSION = "2.5.0-20260913";
+const BUILD_TAG = "250";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const PB_EVENTS = [
@@ -63,6 +63,7 @@ function bindUI(){
   $("#category").addEventListener("change",()=>{toggleTrainingFields();liveRecalc();});
   $("#presetSelect").addEventListener("change",applyPreset);
   $("#distance").addEventListener("input",liveRecalc);
+  $("#flyingApproachDistance").addEventListener("input",liveRecalc);
   $("#reps").addEventListener("input",()=>{renderTimeRows(true);liveRecalc();});
   $("#sets").addEventListener("input",()=>{renderTimeRows(true);liveRecalc();});
   $$('input[name="mode"]').forEach(r=>r.addEventListener("change",toggleMode));
@@ -140,6 +141,9 @@ function trainingPb(distance){ return Number(profile.pbs?.[`${distance}m`]||prof
 function parseMenuSelection(){ const v=$("#category").value||""; if(v.startsWith("custom:")){const id=v.slice(7);return{kind:"custom",custom:customMenus.find(x=>String(x.id)===id)}}; const cat=v.replace(/^std:/,""); return{kind:cat==="weights"?"weight":"running",category:cat}; }
 function toggleTrainingFields(){
   const s=parseMenuSelection(); $("#runningFields").classList.toggle("hidden",s.kind!=="running"); $("#weightFields").classList.toggle("hidden",s.kind!=="weight"); $("#customFields").classList.toggle("hidden",s.kind!=="custom");
+  const isFlying=s.kind==="running"&&s.category==="flying", isBlocks=s.kind==="running"&&s.category==="starting_blocks";
+  $("#flyingFields").classList.toggle("hidden",!isFlying); $("#startingBlockHint").classList.toggle("hidden",!isBlocks);
+  $("#distanceLabelText").textContent=isFlying?"計測距離":"距離";
   if(s.kind==="custom"&&s.custom){ $("#customMenuTitle").textContent=(s.custom.favorite?"★ ":"")+s.custom.name; $("#customBaselineDisplay").value=s.custom.baseline; $("#customBaselineUnit").textContent=s.custom.unit; $("#customDirectionHint").textContent=customDirection(s.custom)==="lower"?"小さいほど高パフォーマンス":"大きいほど高パフォーマンス"; renderCustomValueRows(true); }
   if(s.kind==="weight")renderWeightPresetOptions();
 }
@@ -168,7 +172,7 @@ function currentTrainingDraft(){
     return{...common,subtype:"weight",isWeight:true,category:"weights",weightExerciseId:$("#weightExerciseSelect").value||null,weightExerciseName:$("#weightExerciseName").value.trim(),weightKg:kg,weightReps:reps,weightSets:sets,weightVolume:kg*reps*sets};
   }
   const detail=$('input[name="mode"]:checked').value==="detail",times=detail?$$(".rep-time").map(x=>parseTimeInput(x.value)).filter(Number.isFinite):[],avg=detail?mean(times):parseTimeInput($("#averageTime").value),dist=Number($("#distance").value)||null,pb=dist?trainingPb(dist):null;
-  return{...common,subtype:"running",isCustom:false,isWeight:false,category:s.category,distance:dist,reps:Number($("#reps").value)||1,sets:Number($("#sets").value)||1,mode:detail?"detail":"simple",times,averageTime:avg,pb,pbRatio:pbRatio(pb,avg),dropPct:detail?maxDrop(times):null};
+  return{...common,subtype:"running",isCustom:false,isWeight:false,category:s.category,distance:dist,approachDistance:s.category==="flying"?(Number($("#flyingApproachDistance").value)||null):null,reps:Number($("#reps").value)||1,sets:Number($("#sets").value)||1,mode:detail?"detail":"simple",times,averageTime:avg,pb,pbRatio:pbRatio(pb,avg),dropPct:detail?maxDrop(times):null};
 }
 async function liveRecalc(){
   const d=currentTrainingDraft();
@@ -192,7 +196,7 @@ async function saveTraining(e){
   const history=await getAll("trainings"),meets=await getAll("meets"); d.coach=buildCoachComment(d,history,profile,findNextMeet(meets,d.date)); d.createdAt=new Date().toISOString(); await addRecord("trainings",d); toast("練習を保存しました"); resetTrainingForm(); await refreshAll(); navigate("homeView");
 }
 function resetTrainingForm(){
-  $("#trainingForm").reset(); $("#trainingDate").value=todayISO(); $("#reps").value=1; $("#sets").value=1; $("#customAttempts").value=1; $("#weightReps").value=5; $("#weightSets").value=3; $("#rpe").value=5; $("#fatigueBefore").value=2; $("#fatigueAfter").value=3; $("#rpeValue").textContent="5 / 10"; $("#fatigueBeforeValue").textContent="2 / 5"; $("#fatigueAfterValue").textContent="3 / 5"; populateCategories(); renderTimeRows(false); renderCustomValueRows(false);
+  $("#trainingForm").reset(); $("#trainingDate").value=todayISO(); $("#flyingApproachDistance").value=""; $("#reps").value=1; $("#sets").value=1; $("#customAttempts").value=1; $("#weightReps").value=5; $("#weightSets").value=3; $("#rpe").value=5; $("#fatigueBefore").value=2; $("#fatigueAfter").value=3; $("#rpeValue").textContent="5 / 10"; $("#fatigueBeforeValue").textContent="2 / 5"; $("#fatigueAfterValue").textContent="3 / 5"; populateCategories(); renderTimeRows(false); renderCustomValueRows(false);
 }
 
 function windSensitive(event){ return ["100m","200m","100mH","110mH"].includes(event); }
@@ -210,7 +214,7 @@ async function saveRace(e){
   d.pbBefore=oldPB; d.pbEligible=eligible; d.windAssisted=windSensitive(d.event)&&d.wind!=null&&d.wind>2.0; d.windMissing=windSensitive(d.event)&&d.wind==null;
   d.isPB=eligible && (!oldPB || d.resultSeconds<oldPB);
   const year=d.date.slice(0,4),priorSame=meets.filter(x=>x.status==="completed"&&x.event===d.event&&x.resultSeconds&&x.date.startsWith(year)&&x.id!==d.id); const priorSB=priorSame.length?Math.min(...priorSame.map(x=>x.resultSeconds)):null; d.sbBefore=priorSB; d.isSB=!priorSB||d.resultSeconds<priorSB;
-  const trainings=await getAll("trainings"); const analysis=buildRaceAnalysis(d,trainings,profile); d.preRaceAnalysis=analysis; d.updatedAt=new Date().toISOString(); d.createdAt=existing?.createdAt||new Date().toISOString();
+  const trainings=await getAll("trainings"); const analysis=buildRaceAnalysis(d,trainings,profile); d.racePreparationAnalysis=analysis; d.updatedAt=new Date().toISOString(); d.createdAt=existing?.createdAt||new Date().toISOString();
   if(existing) await putRecord("meets",{...existing,...d,id:existing.id}); else {delete d.id; await addRecord("meets",d);}
   if(d.isPB){ profile.pbs[d.event]=d.resultSeconds; await setSetting("profile",profile); renderProfile(); toast(`試合結果を保存しました。NEW PB ${timeFmt(d.resultSeconds)}`); }
   else if(d.windAssisted) toast("試合結果を保存しました（追い風参考のためPB自動更新なし）");
@@ -270,11 +274,16 @@ async function renderHome(){
   const activities=[...all.map(x=>({...x,_type:"training"})),...meets.filter(x=>x.status==="completed").map(x=>({...x,_type:"race"}))].sort((a,b)=>b.date.localeCompare(a.date)||(b.id||0)-(a.id||0)); $("#recentList").classList.toggle("empty",!activities.length); $("#recentList").innerHTML=activities.length?activities.slice(0,5).map(activityRow).join(""):"まだ記録がありません。";
 }
 function fatigueText(x){ const b=Number(x.fatigueBefore||x.fatigue||0),a=Number(x.fatigueAfter||x.fatigue||0); return b&&a?`${b}→${a}/5`:b?`${b}/5`:"--"; }
+function runningMenuSummary(x){
+  const label=CATEGORY_LABELS[x.category]||x.category||"練習",dist=x.distance?`${x.distance}m`:"";
+  if(x.category==="flying"&&x.approachDistance) return `${label} 助走${x.approachDistance}m→計測${dist}`;
+  return `${label}${dist?` ${dist}`:""}`;
+}
 function activityRow(x){
   if(x._type==="race"||x.status==="completed") return`<div class="list-item"><div class="item-top"><span class="item-title"><span class="pill red">試合</span> ${esc(x.event)} ${timeFmt(x.resultSeconds)}</span><span>${x.isPB?'NEW PB':x.isSB?'SB':''}</span></div><div class="meta">${fmtDate(x.date)}｜${esc(x.name)}｜疲労 ${fatigueText(x)}</div></div>`;
   if(isWeightRecord(x))return`<div class="list-item"><div class="item-top"><span class="item-title"><span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||"ウェイト")}</span><span>${x.weightVolume?Math.round(x.weightVolume)+'kg':''}</span></div><div class="meta">${fmtDate(x.date)}｜${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜疲労 ${fatigueText(x)}</div></div>`;
   if(isCustomRecord(x))return`<div class="list-item"><div class="item-top"><span class="item-title"><span class="pill accent">カスタム</span> ${esc(x.customMenuName||"カスタム")}</span><span>${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':''}</span></div><div class="meta">${fmtDate(x.date)}｜${x.representativeValue!=null?Number(x.representativeValue).toFixed(2)+esc(x.unit||''):"--"}｜疲労 ${fatigueText(x)}</div></div>`;
-  return`<div class="list-item"><div class="item-top"><span class="item-title">${esc(CATEGORY_LABELS[x.category]||x.category)} ${x.distance||''}m × ${x.reps||1}${x.sets>1?` × ${x.sets}set`:''}</span><span>${x.pbRatio?x.pbRatio.toFixed(1)+'%':''}</span></div><div class="meta">${fmtDate(x.date)}｜平均 ${timeFmt(x.averageTime)}｜疲労 ${fatigueText(x)}</div></div>`;
+  return`<div class="list-item"><div class="item-top"><span class="item-title">${esc(runningMenuSummary(x))} × ${x.reps||1}${x.sets>1?` × ${x.sets}set`:''}</span><span>${x.pbRatio?x.pbRatio.toFixed(1)+'%':''}</span></div><div class="meta">${fmtDate(x.date)}｜平均 ${timeFmt(x.averageTime)}｜疲労 ${fatigueText(x)}</div></div>`;
 }
 async function renderHistory(){
   const filter=$("#historyTypeFilter")?.value||"",q=($("#historySearch")?.value||"").toLowerCase(),trainings=await getAll("trainings"),meets=await getAll("meets");
@@ -284,18 +293,18 @@ async function renderHistory(){
 }
 function historyCard(x){
   if(x._type==="race"){
-    const a=x.preRaceAnalysis?.text||"試合前分析は旧データのためありません。";return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill red">試合</span> ${esc(x.name)} ${esc(x.event)}</strong><div class="meta">${timeFmt(x.resultSeconds)}${x.place?`｜${x.place}位`:''}${x.wind!=null?`｜風 ${x.wind>0?'+':''}${x.wind}m/s`:''}${x.isPB?'｜NEW PB':''}${x.windAssisted?'｜追い風参考':''}</div></div><button class="delete-btn" onclick="removeMeet(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message race-note">${esc(a)}</div></article>`;
+    const a=x.racePreparationAnalysis?.text||x.preRaceAnalysis?.text||"試合前分析は旧データのためありません。";return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill red">試合</span> ${esc(x.name)} ${esc(x.event)}</strong><div class="meta">${timeFmt(x.resultSeconds)}${x.place?`｜${x.place}位`:''}${x.wind!=null?`｜風 ${x.wind>0?'+':''}${x.wind}m/s`:''}${x.isPB?'｜NEW PB':''}${x.windAssisted?'｜追い風参考':''}</div></div><button class="delete-btn" onclick="removeMeet(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message race-note">${esc(a)}</div></article>`;
   }
   if(x._type==="weight")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||'ウェイト')}</strong><div class="meta">${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜総ボリューム ${Math.round(x.weightVolume||0)}kg｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||weightCoachNotice())}</div></article>`;
   if(x._type==="custom")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill accent">カスタム</span> ${esc(x.customMenuName||'カスタム')}</strong><div class="meta">代表値 ${Number(x.representativeValue||0).toFixed(2)}${esc(x.unit||'')}｜基準 ${Number(x.baseline||0).toFixed(2)}${esc(x.unit||'')}｜パフォーマンス ${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':'--'}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||customCoachNotice())}</div></article>`;
-  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(CATEGORY_LABELS[x.category]||x.category)}</strong><div class="meta">${x.distance||'-'}m × ${x.reps||1}${x.sets>1?` × ${x.sets}set`:''}｜平均 ${timeFmt(x.averageTime)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(x.coach||'')}</div></article>`;
+  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(runningMenuSummary(x))}</strong><div class="meta">${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''}｜平均 ${timeFmt(x.averageTime)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(x.coach||'')}</div></article>`;
 }
 async function removeTraining(id){ if(!confirm("この練習記録を削除しますか？"))return; await deleteRecord("trainings",Number(id)); toast("削除しました"); await refreshAll(); }
 async function renderMeets(){
   const all=await getAll("meets"),trainings=await getAll("trainings"),today=todayISO();
   const sorted=[...all].sort((a,b)=>{const ap=a.status!=="completed"&&a.date>=today,bp=b.status!=="completed"&&b.date>=today;if(ap!==bp)return ap?-1:1;return ap?a.date.localeCompare(b.date):b.date.localeCompare(a.date);});
   $("#meetList").innerHTML=sorted.length?sorted.map(x=>{
-    if(x.status==="completed")return`<article class="meet-card"><div class="item-top"><div><strong><span class="pill red">結果</span> ${esc(x.name)}</strong><div class="meta">${fmtDate(x.date)}｜${esc(x.event||'')}｜${timeFmt(x.resultSeconds)}${x.isPB?'｜NEW PB':''}</div></div><button class="delete-btn" onclick="removeMeet(${x.id})">削除</button></div><div class="coach-message race-note">${esc(x.preRaceAnalysis?.text||'試合前分析なし')}</div></article>`;
+    if(x.status==="completed")return`<article class="meet-card"><div class="item-top"><div><strong><span class="pill red">結果</span> ${esc(x.name)}</strong><div class="meta">${fmtDate(x.date)}｜${esc(x.event||'')}｜${timeFmt(x.resultSeconds)}${x.isPB?'｜NEW PB':''}</div></div><button class="delete-btn" onclick="removeMeet(${x.id})">削除</button></div><div class="coach-message race-note">${esc(x.racePreparationAnalysis?.text||x.preRaceAnalysis?.text||'試合前分析なし')}</div></article>`;
     const gap=daysTo(today,x.date),a=gap>=0&&gap<=7?buildRaceAnalysis({...x,status:"planned"},trainings,profile):null;return`<article class="meet-card"><div class="item-top"><div><strong>${esc(x.name)}</strong><div class="meta">${fmtDate(x.date)}｜${esc(x.event||'')}｜あと${Math.max(0,gap)}日</div></div><div class="setting-actions"><button class="small-btn" onclick="startRaceFromMeet(${x.id})" type="button">結果を入力</button><button class="delete-btn" onclick="removeMeet(${x.id})">削除</button></div></div>${a?`<div class="coach-message">${esc(a.text)}</div>`:''}</article>`;
   }).join(""):'<div class="card empty">大会予定はまだありません。</div>';
 }

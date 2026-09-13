@@ -19,3 +19,6 @@ main{max-width:860px;margin:auto;padding:16px}.view{display:none}.view.active{di
 .icon-fallback>img{position:relative;z-index:1;width:100%;height:100%;object-fit:cover;background:#f5f0e8}
 .brand-icon-wrap{width:46px;height:46px;border-radius:12px;flex:0 0 46px}
 .launch-icon-wrap{width:128px;height:128px;border-radius:28px;margin-inline:auto}
+
+/* v2.5: contextual guidance for flying runs and starting blocks */
+.menu-help-panel{padding:13px 14px;background:#f5f9ff;border:1px solid #c9dcfb;border-radius:14px}.menu-help-panel h3{margin:5px 0 0}.menu-help-panel p{margin:8px 0 10px}

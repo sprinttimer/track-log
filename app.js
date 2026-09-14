@@ -1,5 +1,5 @@
-const APP_VERSION = "2.9.0-20260914";
-const BUILD_TAG = "290";
+const APP_VERSION = "3.0.0-20260914";
+const BUILD_TAG = "300";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const PB_EVENTS = [
@@ -11,6 +11,9 @@ const LEGACY_TRAINING_DISTANCES = [30,60,100,120,150,200,300,400,600,800,1000,15
 let profile = {age:18,eventGroup:"sprint",primaryEvent:"100m",pbs:{}};
 let customMenus = [], presets = [], weightPresets = [];
 let menuUsageStats = {};
+let historyDisplayMode = "list";
+let historyCalendarCursor = new Date(new Date().getFullYear(),new Date().getMonth(),1);
+let historySelectedDate = null;
 let sessionItemsDraft = [];
 let editingTrainingId = null, editingTrainingCreatedAt = null, editingSessionItemIndex = null;
 let deferredPrompt = null, swReg = null, reloadingForUpdate = false;
@@ -66,7 +69,7 @@ function bindUI(){
   $("#presetForm").addEventListener("submit",savePreset);
   $("#weightPresetForm").addEventListener("submit",saveWeightPreset);
   $("#customMenuForm").addEventListener("submit",saveCustomMenu);
-  $("#category").addEventListener("change",()=>{toggleTrainingFields();liveRecalc();});
+  $("#category").addEventListener("change",()=>{toggleTrainingFields();renderTimeRows(true);liveRecalc();});
   $("#presetSelect").addEventListener("change",applyPreset);
   $("#distance").addEventListener("input",liveRecalc);
   $("#flyingApproachDistance").addEventListener("input",liveRecalc);
@@ -74,6 +77,8 @@ function bindUI(){
   $("#sets").addEventListener("input",()=>{renderTimeRows(true);liveRecalc();});
   $$('input[name="mode"]').forEach(r=>r.addEventListener("change",toggleMode));
   $("#averageTime").addEventListener("input",liveRecalc);
+  ["restMin","setRestMin"].forEach(id=>$("#"+id)?.addEventListener("input",liveRecalc));
+  $$('[data-time-target]').forEach(btn=>btn.addEventListener("click",()=>insertColonInto($("#"+btn.dataset.timeTarget))));
   $("#customAttempts").addEventListener("input",()=>{renderCustomValueRows(true);liveRecalc();});
   $("#weightExerciseSelect").addEventListener("change",applyWeightPreset);
   ["weightKg","weightReps","weightSets"].forEach(id=>$("#"+id).addEventListener("input",liveRecalc));
@@ -84,6 +89,11 @@ function bindUI(){
   $("#historyTypeFilter").addEventListener("change",renderHistory);
   $("#historySearch").addEventListener("input",renderHistory);
   $("#historySearchClear")?.addEventListener("click",()=>{$("#historySearch").value="";renderHistory();$("#historySearch").focus();});
+  $("#historyListModeBtn")?.addEventListener("click",()=>setHistoryDisplayMode("list"));
+  $("#historyCalendarModeBtn")?.addEventListener("click",()=>setHistoryDisplayMode("calendar"));
+  $("#historyCalendarPrev")?.addEventListener("click",()=>moveHistoryCalendarMonth(-1));
+  $("#historyCalendarNext")?.addEventListener("click",()=>moveHistoryCalendarMonth(1));
+  $("#historyCalendarToday")?.addEventListener("click",()=>{const d=new Date();historyCalendarCursor=new Date(d.getFullYear(),d.getMonth(),1);historySelectedDate=todayISO();renderHistory();});
   $("#exportBtn").addEventListener("click",exportData); $("#exportBtn2").addEventListener("click",exportData);
   $("#importInput").addEventListener("change",importData);
   $("#eventGroup").addEventListener("change",()=>{ profile.eventGroup=$("#eventGroup").value; populateCategories(); populatePresetCategory(); });
@@ -115,13 +125,31 @@ function fmtDate(s){ return new Intl.DateTimeFormat("ja-JP",{month:"short",day:"
 function esc(s=""){ return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
 function parseTimeInput(value){
   const s=String(value??"").trim(); if(!s)return null;
-  if(s.includes(":")){ const p=s.split(":").map(Number); if(p.some(x=>!Number.isFinite(x)))return null; if(p.length===2)return p[0]*60+p[1]; if(p.length===3)return p[0]*3600+p[1]*60+p[2]; return null; }
+  if(s.includes(":")){ const p=s.split(":").map(Number); if(p.some(x=>!Number.isFinite(x))||p.some(x=>x<0))return null; if(p.length===2&&p[1]<60)return p[0]*60+p[1]; if(p.length===3&&p[1]<60&&p[2]<60)return p[0]*3600+p[1]*60+p[2]; return null; }
   const n=Number(s); return Number.isFinite(n)&&n>0?n:null;
 }
+function parseRestInput(value){
+  const s=String(value??"").trim(); if(!s)return null;
+  if(s.includes(":"))return parseTimeInput(s);
+  const n=Number(s); return Number.isFinite(n)&&n>=0?n*60:null;
+}
+function restInputValue(seconds,fallbackMin=null){
+  const sec=Number(seconds); if(Number.isFinite(sec)&&sec>0){ if(Math.abs(sec%60)<1e-9)return String(Math.round(sec/60)); return timeInputValue(sec); }
+  const min=Number(fallbackMin); return Number.isFinite(min)&&min>0?String(min):"";
+}
+function insertColonInto(input){
+  if(!input)return; const value=String(input.value||""); if(value.includes(":")){input.focus();return;}
+  const start=input.selectionStart==null?value.length:input.selectionStart,end=input.selectionEnd==null?start:input.selectionEnd;
+  input.value=value.slice(0,start)+":"+value.slice(end); input.focus(); try{input.setSelectionRange(start+1,start+1);}catch{} input.dispatchEvent(new Event("input",{bubbles:true}));
+}
+function pacePerKmSeconds(distance,time){ const d=Number(distance),t=Number(time); return d>0&&t>0?t*1000/d:null; }
+function paceText(distance,time){ const p=pacePerKmSeconds(distance,time); return p?`${timeFmt(p).replace("秒","")} /km`:"--"; }
+function isEnduranceCategory(cat){ return ["pace","interval","repetition","jog","long_run","build_up","tempo"].includes(cat); }
+function clockSecondText(sec){ const s=Number(sec); if(!Number.isFinite(s))return"00"; const rounded=Math.round(s),hasFraction=Math.abs(s-rounded)>=0.005; return hasFraction?s.toFixed(2).padStart(5,"0"):String(rounded).padStart(2,"0"); }
 function timeFmt(v){
   if(v==null||!Number.isFinite(v))return"--";
-  if(v>=3600){const h=Math.floor(v/3600),m=Math.floor((v%3600)/60),s=v%60;return`${h}:${String(m).padStart(2,"0")}:${s.toFixed(2).padStart(5,"0")}`;}
-  if(v>=60){const m=Math.floor(v/60),s=v-m*60;return`${m}:${s.toFixed(2).padStart(5,"0")}`;}
+  if(v>=3600){const h=Math.floor(v/3600),m=Math.floor((v%3600)/60),s=v%60;return`${h}:${String(m).padStart(2,"0")}:${clockSecondText(s)}`;}
+  if(v>=60){const m=Math.floor(v/60),s=v-m*60;return`${m}:${clockSecondText(s)}`;}
   return`${v.toFixed(2)}秒`;
 }
 function daysTo(from,to){ return Math.round((new Date(`${to}T12:00:00`)-new Date(`${from}T12:00:00`))/86400000); }
@@ -169,23 +197,24 @@ function populateRaceEvents(){
 }
 function renderProfile(){
   $("#age").value=profile.age||18; $("#eventGroup").value=profile.eventGroup||"sprint"; $("#primaryEvent").value=profile.primaryEvent||"100m";
-  $("#pbEditor").innerHTML=PB_EVENTS.map(e=>`<label class="pb-entry">${e.key}<input data-pb-key="${e.key}" type="text" inputmode="decimal" value="${profile.pbs?.[e.key]?timeInputValue(profile.pbs[e.key]):""}" placeholder="秒 / 分:秒"></label>`).join("");
+  $("#pbEditor").innerHTML=PB_EVENTS.map(e=>`<label class="pb-entry">${e.key}<input data-pb-key="${e.key}" type="text" inputmode="text" value="${profile.pbs?.[e.key]?timeInputValue(profile.pbs[e.key]):""}" placeholder="秒 / 分:秒"></label>`).join("");
 }
 function timeInputValue(v){ if(!v)return""; if(v>=60)return timeFmt(v).replace("秒",""); return Number(v).toFixed(2); }
 function trainingPb(distance){ return Number(profile.pbs?.[`${distance}m`]||profile.pbs?.[distance])||null; }
 function parseMenuSelection(){ const v=$("#category").value||""; if(v.startsWith("custom:")){const id=v.slice(7);return{kind:"custom",custom:customMenus.find(x=>String(x.id)===id)}}; const cat=v.replace(/^std:/,""); return{kind:cat==="weights"?"weight":"running",category:cat}; }
 function toggleTrainingFields(){
   const s=parseMenuSelection(); $("#runningFields").classList.toggle("hidden",s.kind!=="running"); $("#weightFields").classList.toggle("hidden",s.kind!=="weight"); $("#customFields").classList.toggle("hidden",s.kind!=="custom");
-  const isFlying=s.kind==="running"&&s.category==="flying", isBlocks=s.kind==="running"&&s.category==="starting_blocks", isLongSprint=s.kind==="running"&&s.category==="speed_endurance";
-  $("#flyingFields").classList.toggle("hidden",!isFlying); $("#startingBlockHint").classList.toggle("hidden",!isBlocks); $("#longSprintHint").classList.toggle("hidden",!isLongSprint);
+  const isFlying=s.kind==="running"&&s.category==="flying", isBlocks=s.kind==="running"&&s.category==="starting_blocks", isLongSprint=s.kind==="running"&&s.category==="speed_endurance", isEndurance=s.kind==="running"&&isEnduranceCategory(s.category);
+  $("#flyingFields").classList.toggle("hidden",!isFlying); $("#startingBlockHint").classList.toggle("hidden",!isBlocks); $("#longSprintHint").classList.toggle("hidden",!isLongSprint); $("#enduranceHint").classList.toggle("hidden",!isEndurance);
   $("#distanceLabelText").textContent=isFlying?"計測距離":"距離";
+  if(isEndurance){ const title={pace:"ペース走（一定ペース）",interval:"インターバル走",repetition:"レペティション",jog:"ジョグ",long_run:"ロング走・LSD",build_up:"ビルドアップ",tempo:"テンポ走"}[s.category]||"長距離系メニュー"; $("#enduranceHintTitle").textContent=title; $("#enduranceHintText").textContent=["jog","long_run"].includes(s.category)?"タイムは 25:00、1:02:30 のように入力できます。ジョグ・ロング走は、距離が分からない場合でも所要時間だけで保存できます。":"タイムは 3:20、5:45、25:00 のように入力できます。距離とタイムがあれば平均ペース（/km）も自動計算します。"; }
   if(s.kind==="custom"&&s.custom){ $("#customMenuTitle").textContent=(s.custom.favorite?"★ ":"")+s.custom.name; $("#customBaselineDisplay").value=s.custom.baseline; $("#customBaselineUnit").textContent=s.custom.unit; $("#customDirectionHint").textContent=customDirection(s.custom)==="lower"?"小さいほど高パフォーマンス":"大きいほど高パフォーマンス"; renderCustomValueRows(true); }
   if(s.kind==="weight")renderWeightPresetOptions();
 }
 function renderTimeRows(keep=true){
-  const reps=Math.max(1,Math.min(40,Number($("#reps").value)||1)),sets=Math.max(1,Math.min(12,Number($("#sets").value)||1)),n=Math.min(80,reps*sets),old=$$(".rep-time").map(x=>x.value);
-  $("#timeRows").innerHTML=Array.from({length:n},(_,i)=>{const set=Math.floor(i/reps)+1,rep=i%reps+1,label=sets>1?`S${set}-${rep}`:`${rep}本目`;return`<div class="time-row"><span>${label}</span><div class="with-unit"><input class="rep-time" type="text" inputmode="decimal" value="${keep?(old[i]||""):""}" placeholder="12.34"><span>秒</span></div><span class="ratio-tag" data-ratio-row="${i}">--</span></div>`;}).join("");
-  $$(".rep-time").forEach(x=>x.addEventListener("input",liveRecalc));
+  const reps=Math.max(1,Math.min(40,Number($("#reps").value)||1)),sets=Math.max(1,Math.min(12,Number($("#sets").value)||1)),n=Math.min(80,reps*sets),old=$$(".rep-time").map(x=>x.value),cat=parseMenuSelection().category,isLong=isEnduranceCategory(cat)||Number($("#distance").value)>=600;
+  $("#timeRows").innerHTML=Array.from({length:n},(_,i)=>{const set=Math.floor(i/reps)+1,rep=i%reps+1,label=sets>1?`S${set}-${rep}`:`${rep}本目`;return`<div class="time-row"><span>${label}</span><div class="smart-time"><input class="rep-time" type="text" inputmode="text" autocomplete="off" value="${keep?(old[i]||""):""}" placeholder="${isLong?'3:20':'12.34'}"><button class="time-colon-btn" type="button" aria-label="コロンを入力">:</button></div><span class="ratio-tag" data-ratio-row="${i}">--</span></div>`;}).join("");
+  $$(".rep-time").forEach(x=>x.addEventListener("input",liveRecalc)); $$("#timeRows .time-colon-btn").forEach(btn=>btn.addEventListener("click",()=>insertColonInto(btn.previousElementSibling)));
 }
 function toggleMode(){ const detail=$('input[name="mode"]:checked').value==="detail"; $("#detailTimesBlock").classList.toggle("hidden",!detail); $("#simpleTimeBlock").classList.toggle("hidden",detail); liveRecalc(); }
 function customDirection(m){ return m?.evaluationDirection||(m?.metricType==="time"?"lower":"higher"); }
@@ -209,26 +238,30 @@ function currentMenuDraft(){
     const kg=Number($("#weightKg").value)||0,reps=Number($("#weightReps").value)||1,sets=Number($("#weightSets").value)||1;
     return{subtype:"weight",isWeight:true,category:"weights",weightExerciseId:$("#weightExerciseSelect").value||null,weightExerciseName:$("#weightExerciseName").value.trim(),weightKg:kg,weightReps:reps,weightSets:sets,weightVolume:kg*reps*sets};
   }
-  const detail=$('input[name="mode"]:checked').value==="detail",times=detail?$$(".rep-time").map(x=>parseTimeInput(x.value)).filter(Number.isFinite):[],avg=detail?mean(times):parseTimeInput($("#averageTime").value),dist=Number($("#distance").value)||null,pb=dist?trainingPb(dist):null;
-  return{subtype:"running",isCustom:false,isWeight:false,category:s.category,distance:dist,approachDistance:s.category==="flying"?(Number($("#flyingApproachDistance").value)||null):null,reps:Number($("#reps").value)||1,sets:Number($("#sets").value)||1,restMin:Number($("#restMin").value)||null,setRestMin:Number($("#setRestMin").value)||null,mode:detail?"detail":"simple",times,averageTime:avg,pb,pbRatio:pbRatio(pb,avg),dropPct:detail?maxDrop(times):null};
+  const detail=$('input[name="mode"]:checked').value==="detail",times=detail?$$(".rep-time").map(x=>parseTimeInput(x.value)).filter(Number.isFinite):[],avg=detail?mean(times):parseTimeInput($("#averageTime").value),dist=Number($("#distance").value)||null,pb=dist?trainingPb(dist):null,restSeconds=parseRestInput($("#restMin").value),setRestSeconds=parseRestInput($("#setRestMin").value);
+  return{subtype:"running",isCustom:false,isWeight:false,category:s.category,distance:dist,approachDistance:s.category==="flying"?(Number($("#flyingApproachDistance").value)||null):null,reps:Number($("#reps").value)||1,sets:Number($("#sets").value)||1,restSeconds:restSeconds||null,setRestSeconds:setRestSeconds||null,restMin:restSeconds!=null?restSeconds/60:null,setRestMin:setRestSeconds!=null?setRestSeconds/60:null,mode:detail?"detail":"simple",times,averageTime:avg,paceSecPerKm:pacePerKmSeconds(dist,avg),pb,pbRatio:pbRatio(pb,avg),dropPct:detail?maxDrop(times):null};
 }
 function currentTrainingDraft(){ return{...currentSessionCommon(),...currentMenuDraft()}; }
 function menuDraftIsEmpty(d){
   if(d.isCustom)return !d.customMenuId || !d.representativeValue;
   if(d.isWeight)return !d.weightExerciseName;
-  return !d.category || !d.distance;
+  return !d.category || (!d.distance && !bestTrainingTime(d));
 }
 function validateMenuDraft(d){
   if(d.isCustom){ if(!d.customMenuId||!d.representativeValue)return "カスタムメニューの記録を入力してください"; }
   else if(d.isWeight){ if(!d.weightExerciseName)return "ウェイト種目名を入力してください"; }
-  else if(!d.category||!d.distance)return "メニューと距離を入力してください";
+  else {
+    if(!d.category)return "練習メニューを選択してください";
+    const timeOnlyOk=["jog","long_run"].includes(d.category)&&bestTrainingTime(d)>0;
+    if(!d.distance&&!timeOnlyOk)return ["jog","long_run"].includes(d.category)?"距離を入力するか、所要時間を入力してください":"距離を入力してください";
+  }
   return "";
 }
 function menuItemSummary(d){
   if(isWeightRecord(d))return `${d.weightExerciseName||"ウェイト"} ${d.weightKg||0}kg × ${d.weightReps||0}rep × ${d.weightSets||0}set`;
   if(isCustomRecord(d))return `${d.customMenuName||"カスタム"} ${d.representativeValue!=null?Number(d.representativeValue).toFixed(2)+(d.unit||""):""}`;
-  const main=runningMenuSummary(d), reps=`${d.reps||1}本${d.sets>1?` × ${d.sets}set`:""}`, t=Number(d.averageTime)>0?` / 平均 ${timeFmt(Number(d.averageTime))}`:" / タイム未入力";
-  return `${main} / ${reps}${t}`;
+  const main=runningMenuSummary(d), reps=`${d.reps||1}本${d.sets>1?` × ${d.sets}set`:""}`, t=Number(d.averageTime)>0?` / ${d.reps>1?"平均 ":""}${timeFmt(Number(d.averageTime))}`:" / タイム未入力", pace=d.distance&&d.averageTime?` / ${paceText(d.distance,d.averageTime)}`:"";
+  return `${main} / ${reps}${t}${pace}`;
 }
 function cloneValue(v){ return typeof structuredClone==="function"?structuredClone(v):JSON.parse(JSON.stringify(v)); }
 function updateMenuEditorState(){
@@ -272,7 +305,7 @@ function loadMenuItemIntoEditor(item){
   }else if(isCustomRecord(item)){
     const vals=Array.isArray(item.values)?item.values:[]; $("#customAttempts").value=Math.max(1,vals.length||1); renderCustomValueRows(false); $$(".custom-value").forEach((el,i)=>el.value=vals[i]??"");
   }else{
-    $("#distance").value=item.distance??""; $("#flyingApproachDistance").value=item.approachDistance??""; $("#reps").value=item.reps||1; $("#sets").value=item.sets||1; $("#restMin").value=item.restMin??""; $("#setRestMin").value=item.setRestMin??"";
+    $("#distance").value=item.distance??""; $("#flyingApproachDistance").value=item.approachDistance??""; $("#reps").value=item.reps||1; $("#sets").value=item.sets||1; $("#restMin").value=restInputValue(item.restSeconds,item.restMin); $("#setRestMin").value=restInputValue(item.setRestSeconds,item.setRestMin);
     const detail=item.mode!=="simple"; const r=$(detail?'input[name="mode"][value="detail"]':'input[name="mode"][value="simple"]'); if(r)r.checked=true;
     $("#detailTimesBlock").classList.toggle("hidden",!detail); $("#simpleTimeBlock").classList.toggle("hidden",detail); renderTimeRows(false);
     if(detail){ const times=Array.isArray(item.times)?item.times:[]; $$(".rep-time").forEach((el,i)=>el.value=times[i]!=null?timeInputValue(Number(times[i])):""); }
@@ -324,7 +357,7 @@ async function liveRecalc(){
     $("#weightPreviousPreview").textContent=prev?.weightVolume?`${prev.weightVolume.toFixed(0)} kg`:"--"; $("#weightDeltaPreview").textContent=prev?.weightVolume&&d.weightVolume?`${d.weightVolume>=prev.weightVolume?"+":""}${((d.weightVolume/prev.weightVolume-1)*100).toFixed(1)}%`:"--";
   } else {
     const bestStats=trainingBestStats(d,history);
-    $("#pbPreview").textContent=d.pb?timeFmt(d.pb):"未登録"; $("#pbRatioPreview").textContent=d.averageTime==null?"未計測":d.pbRatio?`${d.pbRatio.toFixed(1)}%`:"PB未登録"; $("#dropPreview").textContent=d.averageTime==null?"未計測":d.dropPct!=null?`${d.dropPct.toFixed(1)}%`:"比較なし";
+    $("#pbPreview").textContent=d.pb?timeFmt(d.pb):"未登録"; $("#pbRatioPreview").textContent=d.averageTime==null?"未計測":d.pbRatio?`${d.pbRatio.toFixed(1)}%`:"PB未登録"; $("#pacePreview").textContent=d.distance&&d.averageTime?paceText(d.distance,d.averageTime):"--"; $("#dropPreview").textContent=d.averageTime==null?"未計測":d.dropPct!=null?`${d.dropPct.toFixed(1)}%`:"比較なし";
     $("#trainingBestPreview").textContent=trainingBestPreviewText(bestStats);
     $("#trainingBestPreview").classList.toggle("new-best",!!bestStats.isBest);
     $$(".rep-time").forEach((el,i)=>{const t=parseTimeInput(el.value),r=pbRatio(d.pb,t),tag=document.querySelector(`[data-ratio-row="${i}"]`); if(tag)tag.textContent=r?`${r.toFixed(1)}%`:"--";});
@@ -337,8 +370,9 @@ async function saveTraining(e){
   e.preventDefault();
   if(editingSessionItemIndex!=null){ const err=validateMenuDraft(currentMenuDraft()); if(err)return toast(`編集中の練習内容を確認してください：${err}`); }
   let session=buildSessionDraft(true); if(!session.date)return toast("日付を入力してください"); if(!session.items.length)return toast("練習内容を1つ以上追加してください");
+  for(let i=0;i<session.items.length;i++){const err=validateMenuDraft(session.items[i]);if(err)return toast(`練習内容${i+1}を確認してください：${err}`);}
   const history=await getAll("trainings"),meets=await getAll("meets"),now=new Date().toISOString(),historyForCoach=editingTrainingId?history.filter(x=>Number(x.id)!==Number(editingTrainingId)):history;
-  session=annotateSessionTrainingBests(session,historyForCoach); session.coach=buildSessionCoachComment(session,historyForCoach,profile,findNextMeet(meets,session.date)); session.coachVersion="2.9"; session.updatedAt=now;
+  session=annotateSessionTrainingBests(session,historyForCoach); session.coach=buildSessionCoachComment(session,historyForCoach,profile,findNextMeet(meets,session.date)); session.coachVersion="3.0"; session.updatedAt=now;
   if(editingTrainingId){ const existing=history.find(x=>Number(x.id)===Number(editingTrainingId)); session.id=Number(editingTrainingId); session.createdAt=existing?.createdAt||editingTrainingCreatedAt||now; await putRecord("trainings",session); toast("練習記録を更新しました。タイムなどの変更を反映して簡易診断も再計算しました"); }
   else { session.createdAt=now; await addRecord("trainings",session); toast(session.items.length>1?`${session.items.length}メニューを1日の練習として保存しました`:"この日の練習を保存しました"); }
   const wasEditing=editingTrainingId!=null; await refreshMenuUsageStats(); resetTrainingForm(); await refreshAll(); navigate(wasEditing?"historyView":"homeView");
@@ -412,21 +446,21 @@ async function saveProfile(e){
   profile={age:Number($("#age").value)||18,eventGroup:$("#eventGroup").value,primaryEvent:$("#primaryEvent").value,pbs}; await setSetting("profile",profile); populateCategories(); populatePresetCategory(); toast("プロフィールを保存しました"); liveRecalc(); renderHome();
 }
 async function savePreset(e){
-  e.preventDefault(); presets.push({id:uniqueId(),name:$("#presetName").value.trim(),category:$("#presetCategory").value,distance:Number($("#presetDistance").value),reps:Number($("#presetReps").value)||1,sets:Number($("#presetSets").value)||1,restMin:Number($("#presetRest").value)||null,favorite:$("#presetFavorite").checked}); await setSetting("presets",presets); e.target.reset(); $("#presetReps").value=3; $("#presetSets").value=1; renderPresetOptions(); renderPresetList(); toast("入力プリセットを追加しました");
+  e.preventDefault(); const restSeconds=parseRestInput($("#presetRest").value); presets.push({id:uniqueId(),name:$("#presetName").value.trim(),category:$("#presetCategory").value,distance:Number($("#presetDistance").value),reps:Number($("#presetReps").value)||1,sets:Number($("#presetSets").value)||1,restSeconds:restSeconds||null,restMin:restSeconds!=null?restSeconds/60:null,favorite:$("#presetFavorite").checked}); await setSetting("presets",presets); e.target.reset(); $("#presetReps").value=3; $("#presetSets").value=1; renderPresetOptions(); renderPresetList(); toast("入力プリセットを追加しました");
 }
 function renderPresetOptions(){
   const valid=new Set(standardOptions().filter(x=>x[0]!=="weights").map(x=>x[0]));
   const sorted=[...presets].filter(x=>valid.has(x.category)).sort((a,b)=>(b.favorite?1:0)-(a.favorite?1:0)||a.name.localeCompare(b.name,"ja"));
   $("#presetSelect").innerHTML='<option value="">プリセットを使わない</option>'+sorted.map(x=>`<option value="${x.id}">${x.favorite?"★ ":""}${esc(x.name)}</option>`).join("");
 }
-function renderPresetList(){ if(!presets.length){$("#presetList").innerHTML='<div class="muted">まだプリセットはありません。</div>';return;} $("#presetList").innerHTML=[...presets].sort((a,b)=>(b.favorite?1:0)-(a.favorite?1:0)).map(x=>`<div class="setting-item"><div><strong>${x.favorite?'<span class="star">★</span> ':''}${esc(x.name)}</strong><div class="meta">${esc(CATEGORY_LABELS[x.category]||x.category)} / ${x.distance}m × ${x.reps}${x.sets>1?` × ${x.sets}set`:""}${x.restMin?` / R=${x.restMin}分`:""}</div></div><div class="setting-actions"><button class="star-btn ${x.favorite?'active':''}" onclick="togglePresetFavorite('${x.id}')" type="button">★</button><button class="delete-btn" onclick="removePreset('${x.id}')" type="button">削除</button></div></div>`).join(""); }
+function renderPresetList(){ if(!presets.length){$("#presetList").innerHTML='<div class="muted">まだプリセットはありません。</div>';return;} $("#presetList").innerHTML=[...presets].sort((a,b)=>(b.favorite?1:0)-(a.favorite?1:0)).map(x=>`<div class="setting-item"><div><strong>${x.favorite?'<span class="star">★</span> ':''}${esc(x.name)}</strong><div class="meta">${esc(CATEGORY_LABELS[x.category]||x.category)} / ${x.distance}m × ${x.reps}${x.sets>1?` × ${x.sets}set`:""}${(x.restSeconds||x.restMin)?` / R=${restInputValue(x.restSeconds,x.restMin)}`:""}</div></div><div class="setting-actions"><button class="star-btn ${x.favorite?'active':''}" onclick="togglePresetFavorite('${x.id}')" type="button">★</button><button class="delete-btn" onclick="removePreset('${x.id}')" type="button">削除</button></div></div>`).join(""); }
 async function togglePresetFavorite(id){ const x=presets.find(p=>String(p.id)===String(id)); if(x)x.favorite=!x.favorite; await setSetting("presets",presets); renderPresetOptions(); renderPresetList(); }
 async function removePreset(id){ if(!confirm("このプリセットを削除しますか？"))return; presets=presets.filter(x=>String(x.id)!==String(id)); await setSetting("presets",presets); renderPresetOptions(); renderPresetList(); }
 function applyPreset(){
   const p=presets.find(x=>String(x.id)===$("#presetSelect").value); if(!p)return;
   const valid=new Set(standardOptions().filter(x=>x[0]!=="weights").map(x=>x[0]));
   if(!valid.has(p.category)){ $("#presetSelect").value=""; toast("このプリセットは旧メニューです。設定から削除し、新しい分類で作り直してください"); return; }
-  $("#category").value=`std:${p.category}`; $("#distance").value=p.distance; $("#reps").value=p.reps; $("#sets").value=p.sets; $("#restMin").value=p.restMin||""; toggleTrainingFields(); renderTimeRows(false); liveRecalc();
+  $("#category").value=`std:${p.category}`; $("#distance").value=p.distance; $("#reps").value=p.reps; $("#sets").value=p.sets; $("#restMin").value=restInputValue(p.restSeconds,p.restMin); toggleTrainingFields(); renderTimeRows(false); liveRecalc();
 }
 
 async function saveWeightPreset(e){
@@ -460,7 +494,7 @@ async function renderHome(){
   const activities=[...all.map(x=>({...x,_type:isDailySession(x)?"session":"training"})),...meets.filter(x=>x.status==="completed").map(x=>({...x,_type:"race"}))].sort((a,b)=>b.date.localeCompare(a.date)||(b.id||0)-(a.id||0)); $("#recentList").classList.toggle("empty",!activities.length); $("#recentList").innerHTML=activities.length?activities.slice(0,5).map(activityRow).join(""):"まだ記録がありません。";
 }
 function fatigueText(x){ const b=Number(x.fatigueBefore||x.fatigue||0),a=Number(x.fatigueAfter||x.fatigue||0); return b&&a?`${b}→${a}/5`:b?`${b}/5`:"--"; }
-function trainingTimeText(x){ return Number.isFinite(Number(x.averageTime))&&Number(x.averageTime)>0?`平均 ${timeFmt(Number(x.averageTime))}`:"タイム未入力"; }
+function trainingTimeText(x){ const t=Number(x.averageTime); if(!(Number.isFinite(t)&&t>0))return "タイム未入力"; if(["jog","long_run"].includes(x.category)&&(Number(x.reps)||1)*(Number(x.sets)||1)===1)return `所要時間 ${timeFmt(t)}`; return `平均 ${timeFmt(t)}`; }
 function missingTimeCount(x){ return sessionItems(x).filter(i=>isRunningRecord(i)&&!(Number.isFinite(Number(i.averageTime))&&Number(i.averageTime)>0)).length; }
 function runningMenuSummary(x){
   const label=CATEGORY_LABELS[x.category]||x.category||"練習",dist=x.distance?`${x.distance}m`:"";
@@ -482,14 +516,15 @@ function itemSearchText(i){
   if(isWeightRecord(i))return `${i.weightExerciseName||""} ウェイト ${i.weightKg||""}kg ${i.weightReps||""}rep ${i.weightSets||""}set 総ボリューム ${i.weightVolume||""}`;
   if(isCustomRecord(i))return `${i.customMenuName||""} カスタム ${i.metricType||""} ${i.representativeValue??""}${i.unit||""} 基準 ${i.baseline??""}${i.unit||""} ${i.performancePct??""}%`;
   const times=(i.times||[]).map(searchableTime).join(" "),best=i.trainingBestCurrent?`練習ベスト ${searchableTime(i.trainingBestCurrent)}`:"";
-  return `${CATEGORY_LABELS[i.category]||i.category||""} ${i.category||""} ${i.distance||""} ${i.distance?i.distance+"m":""} ${i.approachDistance?`助走 ${i.approachDistance}m`:""} ${i.reps||""}本 ${i.sets||""}set ${i.restMin?`レスト ${i.restMin}分`:""} ${searchableTime(i.averageTime)} ${times} ${i.pbRatio??""} PB比 ${i.dropPct??""} タイム低下 ${best} ${i.isTrainingBest?"NEW 練習BEST":""}`;
+  const rest=i.restSeconds||((Number(i.restMin)||0)*60),pace=i.distance&&i.averageTime?paceText(i.distance,i.averageTime):"";
+  return `${CATEGORY_LABELS[i.category]||i.category||""} ${i.category||""} ${i.distance||""} ${i.distance?i.distance+"m":""} ${i.approachDistance?`助走 ${i.approachDistance}m`:""} ${i.reps||""}本 ${i.sets||""}set ${rest?`レスト ${timeInputValue(rest)} ${Number(i.restMin||0)}分`:""} ${searchableTime(i.averageTime)} ${times} ${pace} ${i.pbRatio??""} PB比 ${i.dropPct??""} タイム低下 ${best} ${i.isTrainingBest?"NEW 練習BEST":""}`;
 }
 function storedText(v){ return typeof v==="string"?v:(v?.text||""); }
 function racePrepText(x){ return storedText(x.racePreparationAnalysis)||storedText(x.preRaceAnalysis)||""; }
 function raceResultText(x,trainings=[],meets=[]){ return storedText(x.raceResultComment)||buildRaceResultComment(x,trainings,meets,profile).text; }
 function historicalTrainingCoach(x,context={}){
   const trainings=context.trainings||[],meets=context.meets||[],prior=trainings.filter(t=>Number(t.id)!==Number(x.id)&&(!x.date||!t.date||t.date<=x.date)),next=findNextMeet(meets,x.date||todayISO());
-  if(x.coachVersion==="2.9"&&x.coach)return x.coach;
+  if(x.coachVersion==="3.0"&&x.coach)return x.coach;
   return isDailySession(x)?buildSessionCoachComment(x,prior,profile,next):buildCoachComment(x,prior,profile,next);
 }
 function historySearchText(x,context={}){
@@ -502,18 +537,43 @@ function historySearchText(x,context={}){
   return normalizeSearchText(`${dateSearchTokens(x.date)} ${itemSearchText(x)} 疲労前 ${x.fatigueBefore||x.fatigue||""} 疲労後 ${x.fatigueAfter||x.fatigue||""} ${x.notes||""} ${historicalTrainingCoach(x,context)}`);
 }
 function historyTypeMatches(x,filter){ if(!filter)return true; if(x._type==="race")return filter==="race"; if(isDailySession(x)){const items=sessionItems(x); if(filter==="running")return items.some(isRunningRecord); if(filter==="weight")return items.some(isWeightRecord); if(filter==="custom")return items.some(isCustomRecord); return false;} return x._type===filter; }
+function setHistoryDisplayMode(mode){
+  historyDisplayMode=mode==="calendar"?"calendar":"list"; renderHistory();
+}
+function moveHistoryCalendarMonth(delta){
+  historyCalendarCursor=new Date(historyCalendarCursor.getFullYear(),historyCalendarCursor.getMonth()+Number(delta||0),1); historySelectedDate=null; renderHistory();
+}
+function historyCalendarKinds(x,filter=""){
+  if(x._type==="race")return filter&&filter!=="race"?[]:["race"]; const out=[]; const items=isDailySession(x)?sessionItems(x):[x];
+  if((!filter||filter==="running")&&items.some(isRunningRecord))out.push("run"); if((!filter||filter==="weight")&&items.some(isWeightRecord))out.push("weight"); if((!filter||filter==="custom")&&items.some(isCustomRecord))out.push("custom"); return out;
+}
+function calendarDateISO(y,m,d){return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;}
+function renderHistoryCalendar(items,context){
+  const y=historyCalendarCursor.getFullYear(),m=historyCalendarCursor.getMonth(),monthStart=new Date(y,m,1),days=new Date(y,m+1,0).getDate(),offset=(monthStart.getDay()+6)%7,byDate=new Map(),filter=$("#historyTypeFilter")?.value||"";
+  items.filter(x=>{const dt=new Date(`${x.date}T12:00:00`);return dt.getFullYear()===y&&dt.getMonth()===m;}).forEach(x=>{if(!byDate.has(x.date))byDate.set(x.date,[]);byDate.get(x.date).push(x);});
+  $("#historyCalendarMonth").textContent=`${y}年${m+1}月`; const cells=[]; for(let i=0;i<offset;i++)cells.push('<div class="calendar-cell blank" aria-hidden="true"></div>');
+  for(let d=1;d<=days;d++){ const iso=calendarDateISO(y,m,d),dayItems=byDate.get(iso)||[],kinds=[...new Set(dayItems.flatMap(x=>historyCalendarKinds(x,filter)))],selected=historySelectedDate===iso,today=iso===todayISO(); cells.push(`<button class="calendar-cell ${dayItems.length?'has-record':''} ${selected?'selected':''} ${today?'today':''}" type="button" onclick="selectHistoryCalendarDate('${iso}')"><span class="calendar-day">${d}</span><span class="calendar-dots">${kinds.map(k=>`<i class="cal-dot ${k}"></i>`).join('')}</span>${dayItems.length?`<small>${dayItems.length}件</small>`:''}</button>`); }
+  $("#historyCalendarGrid").innerHTML=cells.join("");
+  const monthItems=[...byDate.values()].flat(),trainingDays=new Set(monthItems.filter(x=>x._type!=="race").map(x=>x.date)).size,raceDays=new Set(monthItems.filter(x=>x._type==="race").map(x=>x.date)).size;
+  $("#historyCalendarSummary").textContent=`この月：練習 ${trainingDays}日 / 試合 ${raceDays}日 / 表示 ${monthItems.length}件。日付をタップするとその日の詳細を確認できます。`;
+  const detail=$("#historyCalendarDayDetail"); if(historySelectedDate){ const selectedItems=(byDate.get(historySelectedDate)||[]).sort((a,b)=>(b.id||0)-(a.id||0)); detail.innerHTML=selectedItems.length?`<div class="calendar-selected-title"><strong>${fmtDate(historySelectedDate)}の記録</strong><span>${selectedItems.length}件</span></div>${selectedItems.map(x=>historyCard(x,context)).join("")}`:`<div class="card empty">${fmtDate(historySelectedDate)}は条件に合う記録がありません。</div>`; }else detail.innerHTML='<div class="card calendar-tip">日付をタップすると、その日の練習・試合とコメントを表示します。</div>';
+}
+function selectHistoryCalendarDate(iso){ historySelectedDate=iso; renderHistory(); setTimeout(()=>$("#historyCalendarDayDetail")?.scrollIntoView({behavior:"smooth",block:"start"}),30); }
 async function renderHistory(){
   const filter=$("#historyTypeFilter")?.value||"",rawQ=$("#historySearch")?.value||"",q=normalizeSearchText(rawQ),terms=q.split(/\s+/).filter(Boolean),trainings=await getAll("trainings"),meets=await getAll("meets"),context={trainings,meets};
   let items=[...trainings.map(x=>({...x,_type:isDailySession(x)?"session":isCustomRecord(x)?"custom":isWeightRecord(x)?"weight":"running"})),...meets.filter(x=>x.status==="completed").map(x=>({...x,_type:"race"}))].sort((a,b)=>b.date.localeCompare(a.date)||(b.id||0)-(a.id||0));
   items=items.filter(x=>{ if(!historyTypeMatches(x,filter))return false; if(!terms.length)return true; const text=historySearchText(x,context); return terms.every(t=>text.includes(t)); });
+  const calendarMode=historyDisplayMode==="calendar"; $("#historyListView").classList.toggle("hidden",calendarMode); $("#historyCalendarView").classList.toggle("hidden",!calendarMode); $("#historyListModeBtn").classList.toggle("active",!calendarMode); $("#historyCalendarModeBtn").classList.toggle("active",calendarMode);
   $("#historyList").classList.toggle("empty",!items.length); $("#historyList").innerHTML=items.length?items.map(x=>historyCard(x,context)).join(""):"条件に合う記録がありません。";
-  const summary=$("#historySearchSummary"); if(summary)summary.textContent=terms.length?`「${rawQ.trim()}」の検索結果：${items.length}件（複数キーワードはすべて含む記録を表示）`:`キーワードは複数入力できます。距離・タイム・メニュー・大会名・メモ・簡易診断・レースコメントまで横断検索します。`;
+  if(calendarMode)renderHistoryCalendar(items,context);
+  const summary=$("#historySearchSummary"); if(summary)summary.textContent=terms.length?`「${rawQ.trim()}」の検索結果：${items.length}件（一覧・カレンダーの両方に反映）`:`キーワードは複数入力できます。距離・タイム・メニュー・大会名・メモ・簡易診断・レースコメントまで横断検索します。`;
 }
 function sessionItemLine(x){
   if(isWeightRecord(x))return `<div class="session-history-line"><span class="pill blue">ウェイト</span><strong>${esc(x.weightExerciseName||'ウェイト')}</strong><span>${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set</span></div>`;
   if(isCustomRecord(x))return `<div class="session-history-line"><span class="pill accent">カスタム</span><strong>${esc(x.customMenuName||'カスタム')}</strong><span>${x.representativeValue!=null?Number(x.representativeValue).toFixed(2)+esc(x.unit||''):''}</span></div>`;
   const best=x.isTrainingBest?` <span class="pill best">NEW 練習BEST</span>`:"";
-  return `<div class="session-history-line"><span class="pill">走</span><strong>${esc(runningMenuSummary(x))}${best}</strong><span>${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''} / ${trainingTimeText(x)}${x.pbRatio?` / PB比 ${x.pbRatio.toFixed(1)}%`:''}${x.trainingBestCurrent?` / 最速 ${timeFmt(Number(x.trainingBestCurrent))}`:''}</span></div>`;
+  const pace=x.distance&&x.averageTime?` / ${paceText(x.distance,x.averageTime)}`:"";
+  return `<div class="session-history-line"><span class="pill">走</span><strong>${esc(runningMenuSummary(x))}${best}</strong><span>${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''} / ${trainingTimeText(x)}${pace}${x.pbRatio?` / PB比 ${x.pbRatio.toFixed(1)}%`:''}${x.trainingBestCurrent?` / 最速 ${timeFmt(Number(x.trainingBestCurrent))}`:''}</span></div>`;
 }
 function analysisBlock(title,text,cls=""){ return text?`<div class="analysis-label">${esc(title)}</div><div class="coach-message ${cls}">${esc(text)}</div>`:""; }
 function historyCard(x,context={}){
@@ -542,7 +602,7 @@ async function renderMeets(){
 }
 
 async function exportData(){
-  const data={version:7,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),profile,customMenus,presets,weightPresets,trainings:await getAll("trainings"),meets:await getAll("meets")},name=`track-log-backup-${todayISO()}.json`,json=JSON.stringify(data,null,2),file=new File([json],name,{type:"application/json"});
+  const data={version:8,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),profile,customMenus,presets,weightPresets,trainings:await getAll("trainings"),meets:await getAll("meets")},name=`track-log-backup-${todayISO()}.json`,json=JSON.stringify(data,null,2),file=new File([json],name,{type:"application/json"});
   const mobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
   if(mobile&&navigator.share&&navigator.canShare?.({files:[file]})){
     try{await navigator.share({files:[file],title:"Track Log バックアップ",text:"機種変更・復元用のバックアップファイルです。Google Drive / iCloud Drive / ファイル等へ保存してください。"});toast("バックアップの共有・保存画面を開きました");return;}catch(err){if(err?.name==="AbortError")return;}

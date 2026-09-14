@@ -10,13 +10,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Track Log">
-  <link rel="manifest" href="./manifest.webmanifest?v=290">
+  <link rel="manifest" href="./manifest.webmanifest?v=300">
   <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32-v240.png">
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48-v240.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192-v240.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v240.png">
-  <link rel="stylesheet" href="./styles.css?v=290">
+  <link rel="stylesheet" href="./styles.css?v=300">
   <title>Track Log</title>
 </head>
 <body>
@@ -92,12 +92,16 @@
               <div class="custom-heading"><div><span class="pill blue">200〜400m</span><h3>ロングスプリント</h3></div></div>
               <p class="muted">200m・250m・300m・350m・400mなど、高い速度を保ちながら走る練習を想定した項目です。距離だけで負荷を断定せず、タイム・本数・前後の疲労感も合わせて分析します。</p>
             </div>
+            <div id="enduranceHint" class="hidden menu-help-panel endurance-help">
+              <div class="custom-heading"><div><span class="pill blue">ENDURANCE</span><h3 id="enduranceHintTitle">長距離系メニュー</h3></div><span class="pill">分:秒対応</span></div>
+              <p id="enduranceHintText" class="muted">タイムは 3:20、25:00、1:02:30 のように入力できます。ペース走・インターバルでは距離とタイムから平均ペースも自動計算します。</p>
+            </div>
             <fieldset><legend>タイム記録（任意）</legend><div class="segmented"><label><input type="radio" name="mode" value="detail" checked>1本ずつ</label><label><input type="radio" name="mode" value="simple">平均のみ</label></div></fieldset>
-            <p class="tiny-note">タイムは任意です。未計測でも、距離・本数・セット・前後の疲労感から保存・分析できます。</p>
-            <div id="detailTimesBlock"><div class="section-title compact"><h3>タイム（任意）</h3><span class="muted">12.34 または 1:52.40／空欄可</span></div><div id="timeRows"></div></div>
-            <div id="simpleTimeBlock" class="hidden"><label>平均タイム（任意）<div class="with-unit"><input id="averageTime" type="text" inputmode="decimal" placeholder="空欄でも保存できます"><span>秒</span></div></label></div>
-            <div class="analysis-preview training-preview"><div><span>公式PB</span><strong id="pbPreview">未登録</strong></div><div><span>PB速度比</span><strong id="pbRatioPreview">--</strong></div><div><span>タイム低下</span><strong id="dropPreview">--</strong></div><div><span>練習ベスト（同距離）</span><strong id="trainingBestPreview">記録なし</strong></div></div><p class="tiny-note">練習ベストは公式PBとは別管理です。1本ずつ入力した場合は同距離の最速1本、平均のみの場合は入力した平均値を比較します。</p>
-            <div class="inline-2 top-gap"><label>本間レスト<div class="with-unit"><input id="restMin" type="number" min="0" step="0.5"><span>分</span></div></label><label>セット間レスト<div class="with-unit"><input id="setRestMin" type="number" min="0" step="0.5"><span>分</span></div></label></div>
+            <p class="tiny-note">タイムは任意です。短距離は「12.34」、長距離・ジョグは「3:20」「25:00」「1:02:30」のように入力できます。スマホで「:」が出しにくい場合は入力欄右の「:」ボタンを押してください。</p>
+            <div id="detailTimesBlock"><div class="section-title compact"><h3>タイム（任意）</h3><span class="muted">12.34 / 3:20 / 25:00／空欄可</span></div><div id="timeRows"></div></div>
+            <div id="simpleTimeBlock" class="hidden"><label>平均タイム・所要時間（任意）<div class="smart-time"><input id="averageTime" type="text" inputmode="text" autocomplete="off" placeholder="例 25:00"><button class="time-colon-btn" type="button" data-time-target="averageTime" aria-label="コロンを入力">:</button></div></label></div>
+            <div class="analysis-preview training-preview"><div><span>公式PB</span><strong id="pbPreview">未登録</strong></div><div><span>PB速度比</span><strong id="pbRatioPreview">--</strong></div><div><span>平均ペース</span><strong id="pacePreview">--</strong></div><div><span>タイム低下</span><strong id="dropPreview">--</strong></div><div><span>練習ベスト（同距離）</span><strong id="trainingBestPreview">記録なし</strong></div></div><p class="tiny-note">練習ベストは公式PBとは別管理です。ペースは距離と平均タイムの両方がある場合に「/km」で表示します。</p>
+            <div class="inline-2 top-gap"><label>本間レスト<div class="smart-time"><input id="restMin" type="text" inputmode="text" autocomplete="off" placeholder="8 または 1:30"><button class="time-colon-btn" type="button" data-time-target="restMin" aria-label="コロンを入力">:</button></div><span class="tiny-note">数字だけなら分、1:30なら1分30秒</span></label><label>セット間レスト<div class="smart-time"><input id="setRestMin" type="text" inputmode="text" autocomplete="off" placeholder="10 または 2:30"><button class="time-colon-btn" type="button" data-time-target="setRestMin" aria-label="コロンを入力">:</button></div><span class="tiny-note">数字だけなら分、2:30なら2分30秒</span></label></div>
           </div>
 
           <div id="weightFields" class="hidden special-panel">
@@ -138,7 +142,7 @@
         <div class="section-title"><h3>試合結果</h3><span class="pill red">RACE</span></div>
         <div class="inline-2"><label>日付<input id="raceDate" type="date" required></label><label>大会名<input id="raceName" required placeholder="例：県記録会"></label></div>
         <div class="inline-2"><label>種目<select id="raceEvent"></select></label><label>ラウンド<select id="raceRound"><option>決勝</option><option>予選</option><option>準決勝</option><option>タイムレース</option><option>記録会</option><option>その他</option></select></label></div>
-        <label>記録<input id="raceResult" type="text" inputmode="decimal" required placeholder="例：11.42 / 1:55.20"></label>
+        <label>記録<div class="smart-time"><input id="raceResult" type="text" inputmode="text" autocomplete="off" required placeholder="例：11.42 / 1:55.20 / 32:10"><button class="time-colon-btn" type="button" data-time-target="raceResult" aria-label="コロンを入力">:</button></div></label>
         <div class="inline-3"><label>順位<div class="with-unit"><input id="racePlace" type="number" min="1" step="1"><span>位</span></div></label><label>風速<div class="with-unit"><input id="raceWind" type="number" step="0.1"><span>m/s</span></div></label><label class="check-row race-check"><input id="raceOfficial" type="checkbox" checked>公認記録としてPB判定</label></div>
         <div class="condition-panel">
           <div class="inline-3"><label>試合前の疲労感<input id="raceFatigueBefore" type="range" min="1" max="5" value="2"><span id="raceFatigueBeforeValue" class="range-value">2 / 5</span></label><label>試合後の疲労感<input id="raceFatigueAfter" type="range" min="1" max="5" value="4"><span id="raceFatigueAfterValue" class="range-value">4 / 5</span></label><label>RPE<input id="raceRpe" type="range" min="1" max="10" value="9"><span id="raceRpeValue" class="range-value">9 / 10</span></label></div>
@@ -151,8 +155,22 @@
 
     <section id="historyView" class="view">
       <div class="page-title"><div><div class="eyebrow">ACTIVITY LOG</div><h2>活動日誌</h2></div><button id="exportBtn" class="ghost" type="button">バックアップ</button></div>
-      <div class="card history-search-card"><div class="filters"><select id="historyTypeFilter"><option value="">すべての活動</option><option value="running">ランニング</option><option value="weight">ウェイト</option><option value="custom">カスタム</option><option value="race">試合</option></select><div class="keyword-search"><span class="search-icon" aria-hidden="true">⌕</span><input id="historySearch" type="search" placeholder="例：300 / ブロック / 41.20 / 県記録会"><button id="historySearchClear" class="search-clear" type="button" aria-label="検索をクリア">×</button></div></div><div id="historySearchSummary" class="tiny-note">キーワードは複数入力できます。距離・タイム・メニュー・大会名・メモ・コメントなどを横断検索します。</div></div>
-      <div id="historyList" class="stack empty">まだ記録がありません。</div>
+      <div class="card history-search-card">
+        <div class="history-view-switch segmented" role="group" aria-label="日誌表示切替"><button id="historyListModeBtn" class="active" type="button">☰ 一覧</button><button id="historyCalendarModeBtn" type="button">▦ カレンダー</button></div>
+        <div class="filters"><select id="historyTypeFilter"><option value="">すべての活動</option><option value="running">ランニング</option><option value="weight">ウェイト</option><option value="custom">カスタム</option><option value="race">試合</option></select><div class="keyword-search"><span class="search-icon" aria-hidden="true">⌕</span><input id="historySearch" type="search" placeholder="例：300 / ブロック / 41.20 / 県記録会"><button id="historySearchClear" class="search-clear" type="button" aria-label="検索をクリア">×</button></div></div>
+        <div id="historySearchSummary" class="tiny-note">キーワードは複数入力できます。距離・タイム・メニュー・大会名・メモ・コメントなどを横断検索します。</div>
+      </div>
+      <div id="historyListView"><div id="historyList" class="stack empty">まだ記録がありません。</div></div>
+      <div id="historyCalendarView" class="hidden">
+        <article class="card log-calendar-card">
+          <div class="calendar-toolbar"><button id="historyCalendarPrev" class="secondary calendar-nav-btn" type="button" aria-label="前の月">‹</button><div><strong id="historyCalendarMonth">--</strong><button id="historyCalendarToday" class="link-btn" type="button">今月</button></div><button id="historyCalendarNext" class="secondary calendar-nav-btn" type="button" aria-label="次の月">›</button></div>
+          <div class="calendar-weekdays"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span></div>
+          <div id="historyCalendarGrid" class="log-calendar-grid"></div>
+          <div class="calendar-legend"><span><i class="cal-dot run"></i>ランニング</span><span><i class="cal-dot weight"></i>ウェイト</span><span><i class="cal-dot custom"></i>カスタム</span><span><i class="cal-dot race"></i>試合</span></div>
+          <div id="historyCalendarSummary" class="tiny-note"></div>
+        </article>
+        <div id="historyCalendarDayDetail" class="stack"></div>
+      </div>
     </section>
 
     <section id="calendarView" class="view">
@@ -171,7 +189,7 @@
       </form>
 
       <article class="card"><div class="section-title"><h3>よく使う入力プリセット</h3><span class="pill">標準ランニング</span></div>
-        <form id="presetForm" class="mini-form"><label>プリセット名<input id="presetName" required placeholder="例：300m×3 R8分"></label><div class="inline-2"><label>メニュー<select id="presetCategory"></select></label><label>距離<div class="with-unit"><input id="presetDistance" type="number" min="1" required><span>m</span></div></label></div><div class="inline-3"><label>本数<input id="presetReps" type="number" min="1" value="3"></label><label>セット<input id="presetSets" type="number" min="1" value="1"></label><label>レスト<div class="with-unit"><input id="presetRest" type="number" min="0" step="0.5"><span>分</span></div></label></div><label class="check-row"><input id="presetFavorite" type="checkbox">★ お気に入り</label><button class="secondary" type="submit">プリセットを追加</button></form><div id="presetList" class="settings-list"></div>
+        <form id="presetForm" class="mini-form"><label>プリセット名<input id="presetName" required placeholder="例：300m×3 R8分"></label><div class="inline-2"><label>メニュー<select id="presetCategory"></select></label><label>距離<div class="with-unit"><input id="presetDistance" type="number" min="1" required><span>m</span></div></label></div><div class="inline-3"><label>本数<input id="presetReps" type="number" min="1" value="3"></label><label>セット<input id="presetSets" type="number" min="1" value="1"></label><label>レスト<div class="smart-time"><input id="presetRest" type="text" inputmode="text" autocomplete="off" placeholder="8 / 1:30"><button class="time-colon-btn" type="button" data-time-target="presetRest" aria-label="コロンを入力">:</button></div></label></div><label class="check-row"><input id="presetFavorite" type="checkbox">★ お気に入り</label><button class="secondary" type="submit">プリセットを追加</button></form><div id="presetList" class="settings-list"></div>
       </article>
 
       <article class="card"><div class="section-title"><h3>ウェイト種目</h3><span class="pill blue">ユーザー登録中心</span></div>
@@ -199,12 +217,12 @@
         <p class="tiny-note">「端末内データを消えにくくする」はブラウザの保存領域保護です。端末故障や機種変更への備えにはバックアップが必要です。</p>
       </article>
 
-      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v290</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
+      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v300</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
     </section>
   </main>
 
   <nav class="bottom-nav"><button data-nav="homeView" class="active" type="button"><span>⌂</span>ホーム</button><button data-nav="historyView" type="button"><span>≡</span>日誌</button><button data-nav="entryView" class="nav-add" type="button"><span>＋</span>記録</button><button data-nav="calendarView" type="button"><span>▣</span>大会</button><button data-nav="settingsView" type="button"><span>⚙</span>設定</button></nav>
   <div id="toast" class="toast hidden"></div>
-  <script src="./db.js?v=290"></script><script src="./coach.js?v=290"></script><script src="./app.js?v=290"></script>
+  <script src="./db.js?v=300"></script><script src="./coach.js?v=300"></script><script src="./app.js?v=300"></script>
 </body>
 </html>

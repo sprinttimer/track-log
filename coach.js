@@ -6,15 +6,17 @@ const CATEGORY_GROUPS = {
     ["flying","フライング走（最高速度区間）"],
     ["speed_endurance","ロングスプリント（200〜400mなど）"],
     ["tempo","テンポ走"],
+    ["pace","ペース走（一定ペース）"],
+    ["interval","インターバル走"],
     ["hill","坂ダッシュ"],
     ["hurdle_drill","ハードル技術"],
     ["jog","ジョグ"],
     ["weights","ウェイト"]
   ],
   middle: [
-    ["interval","インターバル"],
+    ["interval","インターバル走"],
     ["repetition","レペティション"],
-    ["pace","ペース走"],
+    ["pace","ペース走（一定ペース）"],
     ["tempo","テンポ走"],
     ["speed_endurance","ロングスプリント（200〜400mなど）"],
     ["jog","ジョグ"],
@@ -24,8 +26,8 @@ const CATEGORY_GROUPS = {
   ],
   long: [
     ["jog","ジョグ"],
-    ["pace","ペース走"],
-    ["interval","インターバル"],
+    ["pace","ペース走（一定ペース）"],
+    ["interval","インターバル走"],
     ["repetition","レペティション"],
     ["long_run","ロング走・LSD"],
     ["build_up","ビルドアップ"],
@@ -41,6 +43,8 @@ const CATEGORY_GROUPS = {
     ["flying","フライング走（最高速度区間）"],
     ["speed_endurance","ロングスプリント（200〜400mなど）"],
     ["tempo","テンポ走"],
+    ["pace","ペース走（一定ペース）"],
+    ["interval","インターバル走"],
     ["jog","ジョグ"],
     ["weights","ウェイト"]
   ]
@@ -57,11 +61,15 @@ function median(arr){ const a=arr.filter(Number.isFinite).sort((x,y)=>x-y); if(!
 function stddev(arr){ const a=arr.filter(Number.isFinite); if(a.length<2)return null; const m=mean(a); return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/a.length); }
 function maxDrop(times){ const a=times.filter(Number.isFinite); if(a.length<2||a[0]<=0)return null; return (Math.max(...a)/a[0]-1)*100; }
 function pbRatio(pb,time){ return pb&&time&&time>0 ? pb/time*100 : null; }
+function coachSecondText(sec){ const s=Number(sec); const r=Math.round(s); return Math.abs(s-r)>=0.005?s.toFixed(2).padStart(5,"0"):String(r).padStart(2,"0"); }
 function coachTime(seconds){
   const s=Number(seconds); if(!Number.isFinite(s)||s<=0)return "--";
   if(s<60)return `${s.toFixed(2)}秒`;
-  const m=Math.floor(s/60),rest=s-m*60; return `${m}:${rest.toFixed(2).padStart(5,"0")}`;
+  if(s>=3600){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),rest=s%60;return `${h}:${String(m).padStart(2,"0")}:${coachSecondText(rest)}`;}
+  const m=Math.floor(s/60),rest=s-m*60; return `${m}:${coachSecondText(rest)}`;
 }
+function coachPace(distance,time){ const d=Number(distance),t=Number(time); if(!(d>0&&t>0))return null; const sec=t*1000/d; if(sec>=3600){const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),r=Math.round(sec%60);return `${h}:${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}/km`;} const m=Math.floor(sec/60),r=Math.round(sec%60);return `${m}:${String(r).padStart(2,"0")}/km`; }
+function restClock(x){ const s=Number(x?.restSeconds)||((Number(x?.restMin)||0)*60); if(!(s>0))return null; const m=Math.floor(s/60),r=Math.round(s%60); return r?`${m}:${String(r).padStart(2,"0")}`:`${m}分`; }
 function intensityFromRatio(r){ if(r==null)return"unknown"; if(r>=97)return"very_high"; if(r>=93)return"high"; if(r>=88)return"moderate_high"; if(r>=80)return"moderate"; return"low"; }
 function hashSeed(obj){ const s=JSON.stringify(obj); let h=0; for(let i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0; return h; }
 function pick(arr,seed=0){ return arr[Math.abs(seed)%arr.length]; }
@@ -176,7 +184,7 @@ function buildCoachComment(current,history=[],profile={},nextMeet=null){
   const seed=hashSeed({current,n:history.length});
   if(isCustomRecord(current)) return [customCoachNotice(),...conditionComments(current,seed)].join(" ");
   if(isWeightRecord(current)) return [weightCoachNotice(),...conditionComments(current,seed)].join(" ");
-  const ratio=current.pbRatio??pbRatio(current.pb,current.averageTime), drop=current.dropPct??maxDrop(current.times||[]), consistency=repConsistency(current), parts=[], hasTime=bestTrainingTime(current)!=null;
+  const ratio=current.pbRatio??pbRatio(current.pb,current.averageTime), drop=current.dropPct??maxDrop(current.times||[]), consistency=repConsistency(current), parts=[], hasTime=bestTrainingTime(current)!=null, cat=current.category;
   if(!hasTime) parts.push(pick([
     "タイムは未計測です。速度・PB比による評価は行わず、距離・本数・セット・前後の疲労感から内容を判定します。",
     "今回はタイムなしの記録です。未計測をマイナス評価には使わず、練習量と前後の疲労感を中心に見ています。",
@@ -201,19 +209,32 @@ function buildCoachComment(current,history=[],profile={},nextMeet=null){
     if(consistency<=1.2)parts.push(pick([`各本のタイム変動係数は約${consistency.toFixed(1)}%で、反復のばらつきは小さいです。`,`タイムの散らばりは約${consistency.toFixed(1)}%で、再現性の高いセットになっています。`],seed+11));
     else if(consistency>=4.5)parts.push(`各本のタイム変動は約${consistency.toFixed(1)}%と大きめです。意図したペース変化でなければ、レスト・本数・計測条件を確認してください。`);
   }
+  const pace=coachPace(current.distance,current.averageTime);
+  if(pace&&["pace","interval","repetition","jog","long_run","build_up","tempo"].includes(cat)){
+    if(cat==="pace") parts.push(pick([`今回の平均ペースは${pace}です。同じ距離・同じ条件で継続すると、ペースの再現性と前後疲労の変化を比較できます。`,`距離とタイムからみた平均ペースは${pace}です。ペース走では速さ単独ではなく、反復のばらつきと終了後疲労を合わせて追います。`],seed+40));
+    else if(cat==="interval") parts.push(pick([`インターバルの平均は${pace}です。平均だけでなく各本のばらつきと後半低下も同時に判定しています。`,`今回の平均ペースは${pace}です。インターバルでは同じレスト条件で比較すると変化を追いやすくなります。`],seed+41));
+    else if(cat==="jog") parts.push(`距離と時間からみた平均ペースは${pace}です。ジョグではペースの速さを高評価するのではなく、回復目的と疲労反応を優先して見ます。`);
+    else if(cat==="long_run") parts.push(`距離と時間からみた平均ペースは${pace}です。ロング走は単日の速さより、週全体の走行量と翌日の開始前疲労を合わせて評価します。`);
+    else parts.push(`距離とタイムからみた平均ペースは${pace}です。今後も同じ条件で記録すると過去比較に使えます。`);
+  }
+  if(["jog","long_run"].includes(cat)&&!Number(current.distance)&&Number(current.averageTime)>0) parts.push(`今回は距離なし・所要時間${coachTime(Number(current.averageTime))}の時間ベース記録として保存します。距離が分かる回だけ入力すれば、平均ペースも追加で比較できます。`);
+  if(cat==="interval"){ const rest=restClock(current); if(rest)parts.push(`本間レストは${rest}で記録されています。インターバル比較では距離・本数・レストをそろえるとタイム差の解釈がしやすくなります。`); }
+  if(cat==="build_up"&&Array.isArray(current.times)&&current.times.length>=3){ const a=current.times.map(Number).filter(v=>Number.isFinite(v)&&v>0); if(a.length>=3){const change=(a[a.length-1]/a[0]-1)*100;if(change<=-3)parts.push(`最初の区間から最後の区間にかけて約${Math.abs(change).toFixed(1)}%タイムが短縮しています。ビルドアップとして後半へ速度を上げた記録です。`);else if(change>=3)parts.push(`最初の区間より最後の区間が約${change.toFixed(1)}%遅くなっています。意図したビルドアップであれば、区間設定や疲労の影響を確認してください。`);}}
   const usage=sameCategoryUsage(current,history); if(isHighLoadItem(current)&&usage.lastGap!=null&&usage.lastGap<=2)parts.push(pick([`同系統の高負荷メニューを${usage.lastGap}日前にも実施しています。開始前疲労と今日のタイムが維持できているかを確認してください。`,`同じメニュー系統との間隔は${usage.lastGap}日です。短い間隔で高負荷が続いているため、翌日の回復反応も記録しておくと判断材料になります。`],seed+12));
   parts.push(...conditionComments(current,seed+7));
-  const cat=current.category, categoryPhrases={
+  const categoryPhrases={
     short_dash:["短いダッシュはタイムだけでなく、最初の数歩の姿勢と接地位置も記録すると比較しやすくなります。","短距離の最高出力系では、フォームが崩れる前に終えることも練習品質の一部です。","ショートダッシュは距離が短いほど計測誤差の影響も大きくなるため、同じ計測方法で比較してください。"],
     starting_blocks:["スターティングブロック練習では、号砲後の最初の数歩と加速へのつながりを記録すると比較しやすくなります。","ブロックスタートは1本ごとの質を優先し、疲労で姿勢や押し出しが崩れる前に終了することも重要です。","スタート練習は10m・20m・30mなど同じ区間で継続比較すると変化を追いやすくなります。"],
     acceleration:["加速走は静止または低速から速度を高めていく区間そのものを重視する練習です。最初の数歩から中盤までのつながりをメモしておくと、タイム変化の理由を追いやすくなります。","加速練習ではレスト不足で速度が落ちていないかも確認してください。","加速走は同じ距離でもスタート姿勢や開始条件でタイムが変わるため、条件をそろえた比較が有効です。"],
     flying:["フライング走は、助走・加速後の最高速度区間を計測する練習です。加速走とは分けて記録し、助走距離と計測距離を毎回そろえると比較精度が上がります。","最高速度区間の比較では、助走距離と計測距離の条件を固定することが重要です。","フライング走は助走条件の差が計測区間へ影響するため、同じ助走距離での練習ベスト比較を優先してください。"],
     speed_endurance:["ロングスプリントでは、終盤のタイム低下とフォーム維持をセットで評価すると進歩が見えやすくなります。","200〜400mなどのロングスプリントは負荷が高くなりやすいため、翌日の開始前疲労も確認してください。","ロングスプリントは同じ距離でも本数とレストで性質が変わるため、練習ベストだけでなくセット構成も残してください。"],
-    interval:["インターバルは平均だけでなく、最速・最遅・後半低下を見ると設定の適否を判断しやすくなります。","インターバルではレスト条件を固定すると過去比較がしやすくなります。","設定ペースと実測のズレ、後半の落ち幅、疲労感の3点を揃えると比較精度が上がります。"],
+    interval:["インターバル走は平均だけでなく、最速・最遅・後半低下を見ると設定の適否を判断しやすくなります。","インターバル走ではレスト条件を固定すると過去比較がしやすくなります。","距離・各本タイム・レスト・疲労感を揃えると、同じメニューの再現性を客観的に比較しやすくなります。"],
     repetition:["レペティションは各本の質と十分な回復の両方が重要です。","反復練習では設定ペースと後半の低下を一緒に残すと比較しやすくなります。"],
-    pace:["ペース走は設定ペースの再現性と練習前後の疲労感をセットで見ると状態を把握しやすくなります。","同じペースでも練習後の疲労感が抑えられてくれば、記録上は余裕度の変化を追いやすくなります。"],
-    jog:["ジョグは速さより回復目的との整合性を優先してください。","回復目的なら終了後の疲労感が過度に上がっていないかを見るのが有効です。"],
-    long_run:["ロング走は1回のペースだけでなく、週全体の疲労感と合わせて評価してください。","長い走行の翌日に開始前疲労が残るかを追うと、適量を見つけやすくなります。"]
+    pace:["ペース走は平均ペースだけでなく、一定ペースを維持できたかと練習前後の疲労感をセットで見ると状態を把握しやすくなります。","同じ距離・近いペースでも練習後の疲労感が抑えられてくれば、記録上は余裕度の変化を追いやすくなります。","ペース走は距離・所要時間・平均ペースを残すことで、同じコースや条件での比較がしやすくなります。"],
+    jog:["ジョグは速さより回復目的との整合性を優先してください。","回復目的なら終了後の疲労感が過度に上がっていないかを見るのが有効です。","時間ベースのジョグでも記録できます。距離が分かる場合は入力しておくと平均ペースも残せます。"],
+    long_run:["ロング走は1回のペースだけでなく、週全体の疲労感と合わせて評価してください。","長い走行の翌日に開始前疲労が残るかを追うと、適量を見つけやすくなります。","ロング走は距離が不明でも所要時間で記録でき、距離がある場合は平均ペースも比較できます。"],
+    build_up:["ビルドアップは各区間のタイム推移を見ると、後半へ計画的に上げられたかを確認しやすくなります。","ビルドアップでは最終区間だけでなく、序盤から終盤までの段階的な変化を残すと比較しやすくなります。"],
+    tempo:["テンポ走は距離・所要時間・疲労感を同じ条件で記録すると、同程度の負荷に対する反応の変化を追いやすくなります。","テンポ走は平均ペースだけでなく、終了後疲労と翌日の開始前疲労も合わせて確認してください。"]
   };
   if(categoryPhrases[cat]) parts.push(pick(categoryPhrases[cat],seed+8));
   if(cat==="flying"&&Number(current.approachDistance)>0) parts.push(`今回は助走${Number(current.approachDistance)}m→計測${Number(current.distance)||0}mとして記録されています。今後も同じ助走条件で比較すると最高速度区間の変化を追いやすくなります。`);
@@ -229,7 +250,14 @@ function buildSessionCoachComment(session,history=[],profile={},nextMeet=null){
   if(items.length>1){ const labels=items.map(x=>isWeightRecord(x)?x.weightExerciseName||"ウェイト":isCustomRecord(x)?x.customMenuName||"カスタム":CATEGORY_LABELS[x.category]||x.category).filter(Boolean); parts.push(pick([`本日は${items.length}メニューを1つの練習日としてまとめて評価しています（${labels.slice(0,3).join("・")}${labels.length>3?"ほか":""}）。`,`今日の${items.length}メニューを個別ではなく、1日の練習全体として判定しています。`,`1日の中で${items.length}メニューを実施しています。簡易診断は各メニューのタイムだけでなく、組み合わせ・総量・前後疲労をまとめて見ています。`],seed)); }
   const totalVol=sum(run.map(runningVolume));
   if(totalVol>0){ const t=totalVol>=1000?`${(totalVol/1000).toFixed(totalVol%1000===0?0:1)}km`:`${Math.round(totalVol)}m`; parts.push(`ランニング系メニューの合計走行量は${t}です。短い距離と長い距離を組み合わせた場合も、この合計と各メニューの質を分けて見ています。`); }
-  if(run.length>=2){ const ds=run.map(x=>Number(x.distance)).filter(x=>x>0); if(ds.length){ const min=Math.min(...ds),max=Math.max(...ds); if(max>min*2)parts.push(`走行メニューは${min}m〜${max}mまで幅があります。短距離の高出力と長めの負荷を同日に組み合わせた構成として扱っています。`); } }
+  const enduranceRuns=run.filter(x=>["pace","interval","repetition","jog","long_run","build_up","tempo"].includes(x.category));
+  const paced=enduranceRuns.filter(x=>coachPace(x.distance,x.averageTime));
+  if(paced.length){ const labels=paced.slice(0,3).map(x=>`${CATEGORY_LABELS[x.category]||x.category}${x.distance?` ${Number(x.distance)}m`:""} ${coachPace(x.distance,x.averageTime)}`); parts.push(`長距離系メニューの実測ペース：${labels.join(" / ")}。速さだけでなく、各本のばらつき・後半低下・前後疲労と合わせて評価します。`); }
+  const interval=enduranceRuns.find(x=>x.category==="interval"&&Array.isArray(x.times)&&x.times.filter(v=>Number(v)>0).length>=3);
+  if(interval){ const c=repConsistency(interval),d=maxDrop(interval.times||[]),rest=restClock(interval); if(c!=null&&c<=1.5)parts.push(`インターバルのタイム変動は約${c.toFixed(1)}%で、各本は比較的そろっています${rest?`（本間レスト ${rest}）`:""}。`); else if(d!=null&&d>=5)parts.push(`インターバルでは1本目からの最大低下が${d.toFixed(1)}%あります${rest?`（本間レスト ${rest}）`:""}。同じ設定で本数・レスト・疲労感を比較してください。`); }
+  const timeOnly=enduranceRuns.filter(x=>["jog","long_run"].includes(x.category)&&!Number(x.distance)&&Number(x.averageTime)>0);
+  if(timeOnly.length)parts.push(`距離なしの時間ベース記録が${timeOnly.map(x=>`${CATEGORY_LABELS[x.category]||x.category} ${coachTime(Number(x.averageTime))}`).join("・")}あります。距離が分からない日も記録として扱い、疲労傾向には反映します。`);
+  if(run.length>=2){ const ds=run.map(x=>Number(x.distance)).filter(x=>x>0); if(ds.length){ const min=Math.min(...ds),max=Math.max(...ds); if(max>min*2){ if(min<=400&&max>=600)parts.push(`走行メニューは${min}m〜${max}mまで幅があります。短いスピード系と長めの走行を同日に組み合わせた構成として扱っています。`); else parts.push(`走行メニューは${min}m〜${max}mまで幅があります。距離特性が異なる複数メニューとして、各メニューのペース・反復安定性と1日全体の疲労を分けて見ています。`); } } }
   const timed=run.filter(x=>bestTrainingTime(x)!=null), untimed=run.filter(x=>bestTrainingTime(x)==null);
   if(untimed.length&&timed.length===0) parts.push(`ランニング${untimed.length}メニューはタイム未入力です。現在は距離・本数・セット・前後疲労を中心に判定しています。活動日誌の「編集」から後でタイムを追加すると、練習ベスト・PB速度比・反復低下を含めて診断を再計算します。`);
   else if(untimed.length) parts.push(`ランニング${untimed.length}メニューはタイム未入力のため、その部分は走行量と疲労反応を中心に評価しています。後からタイムを追加すると診断内容も更新されます。`);

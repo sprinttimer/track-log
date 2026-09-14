@@ -42,3 +42,20 @@ main{max-width:860px;margin:auto;padding:16px}.view{display:none}.view.active{di
 .pill.warn{background:#fff1c2;color:#7a4d00}.edit-btn{font-weight:800;color:#175cd3;background:#e8f1ff}.session-draft-item.editing{border-color:#175cd3;background:#f3f8ff;box-shadow:0 0 0 2px rgba(23,92,211,.08)}
 .history-card .setting-actions{align-self:flex-start}.history-card .item-top>div:first-child{min-width:0}
 @media(max-width:620px){.training-edit-banner{align-items:stretch;flex-direction:column}.training-edit-banner .secondary{width:100%}.history-card .item-top{align-items:flex-start}.history-card .setting-actions{flex-direction:column;align-items:stretch}.history-card .setting-actions button{white-space:nowrap}.session-draft-item .setting-actions{flex-direction:column;align-items:stretch}}
+
+/* v2.9: usage-sorted menus, training bests, keyword search, richer race analysis */
+.analysis-preview.training-preview{grid-template-columns:repeat(4,minmax(0,1fr))}
+.analysis-preview .new-best{color:#0a7a43}
+.pill.best{background:#e9f8ef;color:#067647;border:1px solid #b7e3c8;font-weight:800}
+.history-search-card{display:grid;gap:8px}
+.keyword-search{position:relative;display:flex;align-items:center}
+.keyword-search .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted);pointer-events:none}
+.keyword-search input{width:100%;padding-left:38px;padding-right:38px}
+.search-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--muted);font-size:22px;line-height:1;padding:5px 7px;border-radius:8px}
+.search-clear:active{background:var(--soft)}
+.analysis-label{font-size:11px;font-weight:800;letter-spacing:.05em;color:var(--muted);margin:12px 0 5px;text-transform:none}
+.coach-message.race-result-note{border-left-color:#d92d20;background:#fff7f5}
+.coach-message.post-race-note{border-left-color:#1570ef;background:#f5f9ff}
+.race-card .analysis-label:first-of-type,.meet-card .analysis-label:first-of-type{margin-top:12px}
+@media(max-width:620px){.analysis-preview.training-preview{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.analysis-preview.training-preview{grid-template-columns:repeat(2,minmax(0,1fr))}.keyword-search .search-icon{left:10px}}

@@ -59,3 +59,55 @@ main{max-width:860px;margin:auto;padding:16px}.view{display:none}.view.active{di
 .race-card .analysis-label:first-of-type,.meet-card .analysis-label:first-of-type{margin-top:12px}
 @media(max-width:620px){.analysis-preview.training-preview{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.analysis-preview.training-preview{grid-template-columns:repeat(2,minmax(0,1fr))}.keyword-search .search-icon{left:10px}}
+
+/* v3.0: minute/second entry, endurance menus and monthly activity calendar */
+.smart-time{display:grid;grid-template-columns:minmax(0,1fr) 42px;gap:7px;align-items:stretch}
+.smart-time input{min-width:0}
+.time-colon-btn{border:1px solid var(--line);background:#fff;border-radius:10px;font-size:20px;font-weight:900;color:var(--navy);padding:6px 0;line-height:1}
+.time-colon-btn:active{background:var(--soft)}
+.endurance-help{background:#f7fbff}
+.history-view-switch{display:grid;grid-template-columns:1fr 1fr;margin-bottom:2px}
+.history-view-switch button{border:0;background:transparent;padding:10px 12px;border-radius:10px;color:var(--muted);font-weight:800}
+.history-view-switch button.active{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(24,34,45,.08)}
+.log-calendar-card{padding:14px}
+.calendar-toolbar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:10px;margin-bottom:12px}
+.calendar-toolbar>div{text-align:center;display:grid;gap:3px}.calendar-toolbar strong{font-size:20px}.calendar-toolbar .link-btn{justify-self:center}
+.calendar-nav-btn{width:44px;height:40px;padding:0;font-size:24px;display:grid;place-items:center}
+.calendar-weekdays,.log-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.calendar-weekdays{margin-bottom:5px}.calendar-weekdays span{text-align:center;color:var(--muted);font-size:11px;font-weight:800;padding:4px 0}
+.calendar-cell{min-height:72px;border:1px solid transparent;background:#faf8f4;border-radius:12px;padding:7px 4px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;color:var(--text);position:relative}
+.calendar-cell.blank{background:transparent;border:0;pointer-events:none}.calendar-cell.has-record{background:#fff;border-color:var(--line)}.calendar-cell.selected{border-color:#175cd3;box-shadow:0 0 0 2px rgba(23,92,211,.12);background:#f5f9ff}.calendar-cell.today .calendar-day{background:var(--navy);color:#fff;border-radius:999px;min-width:25px;height:25px;display:grid;place-items:center}
+.calendar-day{font-size:13px;font-weight:800;line-height:25px}.calendar-cell small{font-size:9px;color:var(--muted);margin-top:auto}.calendar-dots{display:flex;justify-content:center;gap:3px;min-height:8px;flex-wrap:wrap}
+.cal-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#98a2b3}.cal-dot.run{background:#175cd3}.cal-dot.weight{background:#b54708}.cal-dot.custom{background:#7f56d9}.cal-dot.race{background:#d92d20}
+.calendar-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}.calendar-legend span{display:flex;align-items:center;gap:5px}
+.calendar-selected-title{display:flex;justify-content:space-between;align-items:center;padding:4px 2px 0}.calendar-selected-title span{font-size:12px;color:var(--muted)}
+.calendar-tip{font-size:13px;color:var(--muted);text-align:center}
+@media(max-width:420px){.calendar-cell{min-height:64px;padding:5px 2px;border-radius:10px}.calendar-weekdays,.log-calendar-grid{gap:3px}.calendar-cell small{font-size:8px}.calendar-toolbar strong{font-size:18px}.analysis-preview.training-preview{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* v3.1: same-menu history comparison + CSV export */
+.session-history-line{grid-template-columns:auto minmax(100px,1fr) minmax(120px,1.4fr) auto}
+.compare-btn{font-weight:800;color:#175cd3;background:#eef4ff;white-space:nowrap}
+.modal-open{overflow:hidden}
+.compare-modal{position:fixed;inset:0;z-index:1000;background:rgba(17,24,39,.58);display:grid;place-items:end center;padding:18px}
+.compare-modal.hidden{display:none}
+.compare-dialog{width:min(760px,100%);max-height:min(86vh,900px);overflow:auto;background:#fff;border-radius:22px 22px 16px 16px;padding:18px;box-shadow:0 24px 60px rgba(17,24,39,.28)}
+.compare-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:sticky;top:-18px;background:#fff;padding:18px 0 12px;z-index:3;border-bottom:1px solid var(--line)}
+.compare-header h2{margin:3px 0 0;font-size:20px}
+.compare-close{width:40px;height:40px;border:0;border-radius:50%;background:var(--soft);font-size:24px;line-height:1;color:var(--text);flex:0 0 auto}
+.compare-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}
+.compare-summary>div{display:grid;gap:3px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#faf8f4}
+.compare-summary span{font-size:10px;color:var(--muted);font-weight:700}.compare-summary strong{font-size:15px;word-break:break-word}
+.compare-chart{margin:10px 0 14px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+.compare-chart svg{display:block;width:100%;height:auto;min-height:190px}
+.compare-chart .axis{stroke:#98a2b3;stroke-width:1}.compare-chart .grid{stroke:#e4e7ec;stroke-width:1;stroke-dasharray:4 5}
+.compare-chart .trend{stroke:#175cd3;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.compare-chart circle{fill:#fff;stroke:#175cd3;stroke-width:2}.compare-chart circle.current{fill:#d92d20;stroke:#d92d20}
+.compare-chart .axis-text{font-size:12px;fill:#667085}.compare-chart-caption{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted);margin-bottom:4px}
+.compare-records{display:grid;gap:7px}.compare-record{display:flex;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid var(--line);border-radius:12px;background:#fff}.compare-record.current{background:#f5f9ff;border-color:#b9d3ff}
+.compare-record>div{display:grid;gap:2px}.compare-record>div:last-child{text-align:right}.compare-record small{color:var(--muted);font-size:10px}.compare-empty{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+.data-export-section{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+@media(max-width:620px){
+  .session-history-line{grid-template-columns:auto 1fr auto}.session-history-line>span:nth-child(3){grid-column:2}.session-history-line>.compare-btn{grid-column:3;grid-row:1 / span 2;align-self:center}
+  .compare-modal{padding:0;place-items:end stretch}.compare-dialog{width:100%;max-height:92vh;border-radius:22px 22px 0 0;padding:15px}.compare-header{top:-15px;padding:15px 0 10px}
+  .compare-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.compare-chart{padding:8px}.compare-record{font-size:12px}
+}

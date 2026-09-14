@@ -10,13 +10,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Track Log">
-  <link rel="manifest" href="./manifest.webmanifest?v=300">
+  <link rel="manifest" href="./manifest.webmanifest?v=310">
   <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32-v240.png">
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48-v240.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192-v240.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v240.png">
-  <link rel="stylesheet" href="./styles.css?v=300">
+  <link rel="stylesheet" href="./styles.css?v=310">
   <title>Track Log</title>
 </head>
 <body>
@@ -215,14 +215,29 @@
         <p class="tiny-note">※ バックアップファイルには練習・試合記録、プロフィール、カスタムメニュー、入力プリセット、ウェイト種目が含まれます。機種変更前に必ず保存してください。</p>
         <div class="button-row top-gap"><button id="persistBtn" class="secondary" type="button">端末内データを消えにくくする</button></div>
         <p class="tiny-note">「端末内データを消えにくくする」はブラウザの保存領域保護です。端末故障や機種変更への備えにはバックアップが必要です。</p>
+        <div class="data-export-section">
+          <div class="section-title compact"><div><h3>CSVエクスポート</h3><p class="muted">Excel・Googleスプレッドシートなどで、自分の記録を確認・分析するための書き出しです。</p></div><span class="pill">閲覧・分析用</span></div>
+          <button id="csvExportBtn" class="secondary wide" type="button">CSVで書き出す</button>
+          <p class="tiny-note">練習は1メニューにつき1行、試合は1レースにつき1行で出力します。CSVは復元用ではありません。機種変更・完全復元には上のJSONバックアップを使用してください。</p>
+        </div>
       </article>
 
-      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v300</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
+      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v310</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
     </section>
   </main>
 
+  <div id="comparisonModal" class="compare-modal hidden" role="dialog" aria-modal="true" aria-labelledby="comparisonTitle">
+    <div class="compare-dialog">
+      <div class="compare-header"><div><div class="eyebrow">HISTORY COMPARISON</div><h2 id="comparisonTitle">同一メニューの過去比較</h2></div><button id="comparisonCloseBtn" class="compare-close" type="button" aria-label="閉じる">×</button></div>
+      <div id="comparisonSummary" class="compare-summary"></div>
+      <div id="comparisonChart" class="compare-chart"></div>
+      <div id="comparisonRecords" class="compare-records"></div>
+      <p id="comparisonNote" class="tiny-note"></p>
+    </div>
+  </div>
+
   <nav class="bottom-nav"><button data-nav="homeView" class="active" type="button"><span>⌂</span>ホーム</button><button data-nav="historyView" type="button"><span>≡</span>日誌</button><button data-nav="entryView" class="nav-add" type="button"><span>＋</span>記録</button><button data-nav="calendarView" type="button"><span>▣</span>大会</button><button data-nav="settingsView" type="button"><span>⚙</span>設定</button></nav>
   <div id="toast" class="toast hidden"></div>
-  <script src="./db.js?v=300"></script><script src="./coach.js?v=300"></script><script src="./app.js?v=300"></script>
+  <script src="./db.js?v=310"></script><script src="./coach.js?v=310"></script><script src="./app.js?v=310"></script>
 </body>
 </html>

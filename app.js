@@ -1,5 +1,5 @@
-const APP_VERSION = "3.0.0-20260914";
-const BUILD_TAG = "300";
+const APP_VERSION = "3.1.0-20260914";
+const BUILD_TAG = "310";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const PB_EVENTS = [
@@ -95,7 +95,11 @@ function bindUI(){
   $("#historyCalendarNext")?.addEventListener("click",()=>moveHistoryCalendarMonth(1));
   $("#historyCalendarToday")?.addEventListener("click",()=>{const d=new Date();historyCalendarCursor=new Date(d.getFullYear(),d.getMonth(),1);historySelectedDate=todayISO();renderHistory();});
   $("#exportBtn").addEventListener("click",exportData); $("#exportBtn2").addEventListener("click",exportData);
+  $("#csvExportBtn")?.addEventListener("click",exportCsv);
   $("#importInput").addEventListener("change",importData);
+  $("#comparisonCloseBtn")?.addEventListener("click",closeTrainingComparison);
+  $("#comparisonModal")?.addEventListener("click",e=>{if(e.target===$("#comparisonModal"))closeTrainingComparison();});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#comparisonModal")?.classList.contains("hidden"))closeTrainingComparison();});
   $("#eventGroup").addEventListener("change",()=>{ profile.eventGroup=$("#eventGroup").value; populateCategories(); populatePresetCategory(); });
   $("#installBtn").addEventListener("click",triggerInstall); $("#installBtn2").addEventListener("click",triggerInstall);
   $("#updateBtn").addEventListener("click",forceLatestReload);
@@ -568,12 +572,15 @@ async function renderHistory(){
   if(calendarMode)renderHistoryCalendar(items,context);
   const summary=$("#historySearchSummary"); if(summary)summary.textContent=terms.length?`「${rawQ.trim()}」の検索結果：${items.length}件（一覧・カレンダーの両方に反映）`:`キーワードは複数入力できます。距離・タイム・メニュー・大会名・メモ・簡易診断・レースコメントまで横断検索します。`;
 }
-function sessionItemLine(x){
-  if(isWeightRecord(x))return `<div class="session-history-line"><span class="pill blue">ウェイト</span><strong>${esc(x.weightExerciseName||'ウェイト')}</strong><span>${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set</span></div>`;
-  if(isCustomRecord(x))return `<div class="session-history-line"><span class="pill accent">カスタム</span><strong>${esc(x.customMenuName||'カスタム')}</strong><span>${x.representativeValue!=null?Number(x.representativeValue).toFixed(2)+esc(x.unit||''):''}</span></div>`;
+function comparisonButton(recordId,itemIndex=0,label="過去比較"){
+  return `<button class="small-btn compare-btn" onclick="openTrainingComparison(${Number(recordId)},${Number(itemIndex)})" type="button">${esc(label)}</button>`;
+}
+function sessionItemLine(x,recordId,itemIndex=0){
+  if(isWeightRecord(x))return `<div class="session-history-line"><span class="pill blue">ウェイト</span><strong>${esc(x.weightExerciseName||'ウェイト')}</strong><span>${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set</span>${comparisonButton(recordId,itemIndex,"推移")}</div>`;
+  if(isCustomRecord(x))return `<div class="session-history-line"><span class="pill accent">カスタム</span><strong>${esc(x.customMenuName||'カスタム')}</strong><span>${x.representativeValue!=null?Number(x.representativeValue).toFixed(2)+esc(x.unit||''):''}</span>${comparisonButton(recordId,itemIndex,"推移")}</div>`;
   const best=x.isTrainingBest?` <span class="pill best">NEW 練習BEST</span>`:"";
   const pace=x.distance&&x.averageTime?` / ${paceText(x.distance,x.averageTime)}`:"";
-  return `<div class="session-history-line"><span class="pill">走</span><strong>${esc(runningMenuSummary(x))}${best}</strong><span>${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''} / ${trainingTimeText(x)}${pace}${x.pbRatio?` / PB比 ${x.pbRatio.toFixed(1)}%`:''}${x.trainingBestCurrent?` / 最速 ${timeFmt(Number(x.trainingBestCurrent))}`:''}</span></div>`;
+  return `<div class="session-history-line"><span class="pill">走</span><strong>${esc(runningMenuSummary(x))}${best}</strong><span>${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''} / ${trainingTimeText(x)}${pace}${x.pbRatio?` / PB比 ${x.pbRatio.toFixed(1)}%`:''}${x.trainingBestCurrent?` / 最速 ${timeFmt(Number(x.trainingBestCurrent))}`:''}</span>${comparisonButton(recordId,itemIndex,"推移")}</div>`;
 }
 function analysisBlock(title,text,cls=""){ return text?`<div class="analysis-label">${esc(title)}</div><div class="coach-message ${cls}">${esc(text)}</div>`:""; }
 function historyCard(x,context={}){
@@ -582,12 +589,69 @@ function historyCard(x,context={}){
     const result=raceResultText(x,trainings,meets),prep=racePrepText(x)||buildRaceAnalysis(x,trainings,profile).text,post=buildRacePostAnalysis(x,trainings,profile).text;
     return`<article class="history-card race-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill red">試合</span> ${esc(x.name)} ${esc(x.event)}</strong><div class="meta">${timeFmt(x.resultSeconds)}${x.place?`｜${x.place}位`:''}${x.wind!=null?`｜風 ${x.wind>0?'+':''}${x.wind}m/s`:''}${x.isPB?'｜NEW PB':x.isSB?'｜SB':''}${x.windAssisted?'｜追い風参考':''}</div></div><button class="delete-btn" onclick="removeMeet(${x.id})">削除</button></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}${analysisBlock("レース結果コメント",result,"race-result-note")}${analysisBlock("試合前分析",prep,"race-note")}${analysisBlock("試合後分析",post,"post-race-note")}</article>`;
   }
-  if(isDailySession(x)){ const missing=missingTimeCount(x); return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">1日の練習</span> ${x.items.length}メニュー ${missing?`<span class="pill warn">タイム未入力 ${missing}件</span>`:''}</strong><div class="meta">疲労 ${fatigueText(x)}${x.durationMin?`｜練習時間 ${x.durationMin}分`:''}${x.updatedAt?`｜最終更新 ${new Date(x.updatedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}`:''}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">この日を削除</button></div></div><div class="session-history-list">${sessionItems(x).map(sessionItemLine).join('')}</div>${x.notes?`<div class="meta top-gap">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message top-gap">${esc(historicalTrainingCoach(x,context))}</div></article>`; }
-  if(x._type==="weight")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||'ウェイト')}</strong><div class="meta">${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜総ボリューム ${Math.round(x.weightVolume||0)}kg｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||weightCoachNotice())}</div></article>`;
-  if(x._type==="custom")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill accent">カスタム</span> ${esc(x.customMenuName||'カスタム')}</strong><div class="meta">代表値 ${Number(x.representativeValue||0).toFixed(2)}${esc(x.unit||'')}｜基準 ${Number(x.baseline||0).toFixed(2)}${esc(x.unit||'')}｜パフォーマンス ${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':'--'}｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||customCoachNotice())}</div></article>`;
+  if(isDailySession(x)){ const missing=missingTimeCount(x); return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">1日の練習</span> ${x.items.length}メニュー ${missing?`<span class="pill warn">タイム未入力 ${missing}件</span>`:''}</strong><div class="meta">疲労 ${fatigueText(x)}${x.durationMin?`｜練習時間 ${x.durationMin}分`:''}${x.updatedAt?`｜最終更新 ${new Date(x.updatedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}`:''}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">この日を削除</button></div></div><div class="session-history-list">${sessionItems(x).map((item,index)=>sessionItemLine(item,x.id,index)).join('')}</div>${x.notes?`<div class="meta top-gap">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message top-gap">${esc(historicalTrainingCoach(x,context))}</div></article>`; }
+  if(x._type==="weight")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill blue">ウェイト</span> ${esc(x.weightExerciseName||'ウェイト')}</strong><div class="meta">${x.weightKg||0}kg × ${x.weightReps||0}rep × ${x.weightSets||0}set｜総ボリューム ${Math.round(x.weightVolume||0)}kg｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions">${comparisonButton(x.id,0)}<button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||weightCoachNotice())}</div></article>`;
+  if(x._type==="custom")return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜<span class="pill accent">カスタム</span> ${esc(x.customMenuName||'カスタム')}</strong><div class="meta">代表値 ${Number(x.representativeValue||0).toFixed(2)}${esc(x.unit||'')}｜基準 ${Number(x.baseline||0).toFixed(2)}${esc(x.unit||'')}｜パフォーマンス ${x.performancePct!=null?(x.performancePct>=0?'+':'')+x.performancePct.toFixed(1)+'%':'--'}｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions">${comparisonButton(x.id,0)}<button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message custom-note">${esc(x.coach||customCoachNotice())}</div></article>`;
   const best=x.isTrainingBest?'<span class="pill best">NEW 練習BEST</span>':'';
-  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(runningMenuSummary(x))} ${best} ${missingTimeCount(x)?'<span class="pill warn">タイム未入力</span>':''}</strong><div class="meta">${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''}｜${trainingTimeText(x)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions"><button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(historicalTrainingCoach(x,context))}</div></article>`;
+  return`<article class="history-card"><div class="item-top"><div><strong>${fmtDate(x.date)}｜${esc(runningMenuSummary(x))} ${best} ${missingTimeCount(x)?'<span class="pill warn">タイム未入力</span>':''}</strong><div class="meta">${x.reps||1}本${x.sets>1?` × ${x.sets}set`:''}｜${trainingTimeText(x)}${x.pbRatio?`｜PB比 ${x.pbRatio.toFixed(1)}%`:''}｜疲労 ${fatigueText(x)}</div></div><div class="setting-actions">${comparisonButton(x.id,0)}<button class="small-btn edit-btn" onclick="startEditTraining(${x.id})" type="button">編集</button><button class="delete-btn" onclick="removeTraining(${x.id})">削除</button></div></div>${x.notes?`<div class="meta">メモ：${esc(x.notes)}</div>`:''}<div class="coach-message">${esc(historicalTrainingCoach(x,context))}</div></article>`;
 }
+function comparisonIdentity(item){
+  if(isWeightRecord(item))return{kind:"weight",key:`weight:${String(item.weightExerciseName||item.weightExerciseId||"").trim().toLowerCase()}`,title:item.weightExerciseName||"ウェイト",metric:"総ボリューム",unit:"kg",lowerBetter:false};
+  if(isCustomRecord(item))return{kind:"custom",key:`custom:${String(item.customMenuId||item.customMenuName||"").trim().toLowerCase()}`,title:item.customMenuName||"カスタム",metric:"代表値",unit:item.unit||"",lowerBetter:customDirection(item)==="lower"};
+  return{kind:"running",key:`run:${item.category||""}:${Number(item.distance)||0}`,title:runningMenuSummary(item),metric:"平均タイム",unit:"",lowerBetter:true};
+}
+function comparisonMetricValue(item){
+  if(isWeightRecord(item))return Number(item.weightVolume)||((Number(item.weightKg)||0)*(Number(item.weightReps)||0)*(Number(item.weightSets)||0))||null;
+  if(isCustomRecord(item))return Number(item.representativeValue)||null;
+  const avg=Number(item.averageTime); if(Number.isFinite(avg)&&avg>0)return avg; const ts=(item.times||[]).map(Number).filter(v=>Number.isFinite(v)&&v>0); return ts.length?mean(ts):bestTrainingTime(item);
+}
+function comparisonBestRepValue(item){ return isRunningRecord(item)?bestTrainingTime(item):comparisonMetricValue(item); }
+function comparisonSameMenu(a,b){ return comparisonIdentity(a).key===comparisonIdentity(b).key; }
+function comparisonSameCondition(a,b){
+  if(!comparisonSameMenu(a,b))return false;
+  if(isRunningRecord(a)&&isRunningRecord(b))return Number(a.reps||1)===Number(b.reps||1)&&Number(a.sets||1)===Number(b.sets||1)&&Number(a.approachDistance||0)===Number(b.approachDistance||0);
+  if(isWeightRecord(a)&&isWeightRecord(b))return Number(a.weightReps||0)===Number(b.weightReps||0)&&Number(a.weightSets||0)===Number(b.weightSets||0);
+  return true;
+}
+function comparisonMetricText(item,value){
+  if(value==null||!Number.isFinite(Number(value)))return"--";
+  if(isRunningRecord(item))return timeFmt(Number(value));
+  const id=comparisonIdentity(item); return `${Number(value).toFixed(id.kind==="weight"?0:2)}${esc(id.unit)}`;
+}
+function allComparableTrainingItems(trainings){
+  const out=[]; for(const rec of trainings){ const items=isDailySession(rec)?sessionItems(rec):[rec]; items.forEach((item,index)=>out.push({...item,date:rec.date,_recordId:rec.id,_itemIndex:index,_parentCreatedAt:rec.createdAt||""})); } return out;
+}
+function comparisonChartSvg(points,identity,currentRecordId,currentItemIndex){
+  const clean=points.filter(p=>Number.isFinite(p.value)); if(clean.length<2)return '<div class="compare-empty">グラフ化できる記録が2件以上たまると推移を表示します。</div>';
+  const recent=clean.slice(-12),w=680,h=230,left=52,right=18,top=20,bottom=42,pw=w-left-right,ph=h-top-bottom,vals=recent.map(p=>p.value),min=Math.min(...vals),max=Math.max(...vals),pad=(max-min||Math.max(Math.abs(max),1))*0.10,lo=min-pad,hi=max+pad;
+  const x=i=>left+(recent.length===1?pw/2:i*pw/(recent.length-1));
+  const y=v=>identity.lowerBetter?top+(v-lo)/(hi-lo)*ph:top+(hi-v)/(hi-lo)*ph;
+  const path=recent.map((p,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
+  const dots=recent.map((p,i)=>{const cur=Number(p._recordId)===Number(currentRecordId)&&Number(p._itemIndex)===Number(currentItemIndex);return `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="${cur?6:4}" class="${cur?'current':''}"><title>${p.date} ${comparisonMetricText(p.item,p.value)}</title></circle>`;}).join('');
+  const first=recent[0].date?.slice(5).replace('-','/'),last=recent.at(-1).date?.slice(5).replace('-','/');
+  const best=identity.lowerBetter?min:max,worst=identity.lowerBetter?max:min;
+  return `<div class="compare-chart-caption"><span>直近${recent.length}件</span><span>上ほど${identity.lowerBetter?'良い記録':'大きい値'}${identity.kind==='weight'?'（参考）':''}</span></div><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(identity.title)}の推移グラフ"><line x1="${left}" y1="${top}" x2="${left}" y2="${h-bottom}" class="axis"/><line x1="${left}" y1="${h-bottom}" x2="${w-right}" y2="${h-bottom}" class="axis"/><line x1="${left}" y1="${top+ph/2}" x2="${w-right}" y2="${top+ph/2}" class="grid"/><path d="${path}" class="trend" fill="none"/>${dots}<text x="8" y="${top+6}" class="axis-text">${esc(comparisonMetricText(recent[0].item,best))}</text><text x="8" y="${h-bottom}" class="axis-text">${esc(comparisonMetricText(recent[0].item,worst))}</text><text x="${left}" y="${h-12}" class="axis-text">${esc(first||'')}</text><text x="${w-right}" y="${h-12}" text-anchor="end" class="axis-text">${esc(last||'')}</text></svg>`;
+}
+async function openTrainingComparison(recordId,itemIndex=0){
+  const trainings=await getAll("trainings"),record=trainings.find(r=>Number(r.id)===Number(recordId)); if(!record)return toast("比較する記録が見つかりませんでした");
+  const current=(isDailySession(record)?sessionItems(record):[record])[Number(itemIndex)]||record,identity=comparisonIdentity(current),all=allComparableTrainingItems(trainings).filter(x=>comparisonSameMenu(current,x));
+  const measured=all.map(x=>({...x,item:x,value:comparisonMetricValue(x)})).filter(x=>Number.isFinite(x.value)).sort((a,b)=>String(a.date).localeCompare(String(b.date))||Number(a._recordId)-Number(b._recordId)||Number(a._itemIndex)-Number(b._itemIndex));
+  const currentValue=comparisonMetricValue(current),prior=measured.filter(x=>x.date<=record.date&&!(Number(x._recordId)===Number(record.id)&&Number(x._itemIndex)===Number(itemIndex))),sameConditionPrior=prior.filter(x=>comparisonSameCondition(current,x.item)),previous=(sameConditionPrior.length?sameConditionPrior:prior).at(-1)||null,recent=(sameConditionPrior.length?sameConditionPrior:prior).slice(-5),recentAvg=recent.length?mean(recent.map(x=>x.value)):null;
+  const bestPoint=measured.length?(identity.lowerBetter?measured.reduce((a,b)=>a.value<=b.value?a:b):measured.reduce((a,b)=>a.value>=b.value?a:b)):null;
+  const delta=previous&&currentValue!=null?currentValue-previous.value:null,improve=delta!=null?(identity.lowerBetter?-delta:delta):null;
+  $("#comparisonTitle").textContent=`${identity.title}｜過去比較`;
+  $("#comparisonSummary").innerHTML=`<div><span>今回</span><strong>${esc(comparisonMetricText(current,currentValue))}</strong></div><div><span>前回${sameConditionPrior.length?'（同条件）':''}</span><strong>${previous?esc(comparisonMetricText(previous.item,previous.value)):'--'}</strong></div><div><span>直近5回平均</span><strong>${recentAvg!=null?esc(comparisonMetricText(current,recentAvg)):'--'}</strong></div><div><span>${identity.kind==='running'?'練習BEST':'期間内ベスト'}</span><strong>${bestPoint?esc(comparisonMetricText(bestPoint.item,bestPoint.value)):'--'}</strong></div>`;
+  $("#comparisonChart").innerHTML=comparisonChartSvg(measured,identity,record.id,itemIndex);
+  const rows=[...measured].reverse().slice(0,12).map(p=>{const cur=Number(p._recordId)===Number(record.id)&&Number(p._itemIndex)===Number(itemIndex),cond=comparisonSameCondition(current,p.item)?'同条件':'条件差あり',detail=isRunningRecord(p.item)?`${p.item.reps||1}本${p.item.sets>1?` × ${p.item.sets}set`:''}${p.item.distance?` / ${p.item.distance}m`:''}${p.item.distance&&p.value?` / ${paceText(p.item.distance,p.value)}`:''}`:isWeightRecord(p.item)?`${p.item.weightKg||0}kg × ${p.item.weightReps||0}rep × ${p.item.weightSets||0}set`:`${Number(p.item.representativeValue||0).toFixed(2)}${p.item.unit||''}`;return `<div class="compare-record ${cur?'current':''}"><div><strong>${esc(fmtDate(p.date))}${cur?' <span class="pill blue">今回</span>':''}</strong><small>${esc(detail)}</small></div><div><strong>${esc(comparisonMetricText(p.item,p.value))}</strong><small>${esc(cond)}</small></div></div>`;}).join('');
+  $("#comparisonRecords").innerHTML=rows||'<div class="compare-empty">比較できる過去記録がまだありません。</div>';
+  let note="";
+  if(identity.kind==="running")note=`同じメニュー名＋同じ距離の記録を集めています。本数・セット・助走条件が同じ記録を「同条件」として前回比較に優先します。${improve!=null?` 今回は前回比 ${improve>=0?'+':''}${improve.toFixed(2)}秒相当の変化です。`:''}`;
+  else if(identity.kind==="weight")note="ウェイトは総ボリューム（重量×rep×set）の推移を表示します。総ボリュームが大きいほど優れているとは限らないため、良し悪しの自動判定には使用しません。";
+  else note=`カスタムメニューの代表値を、設定した評価方向（${identity.lowerBetter?'小さいほど高評価':'大きいほど高評価'}）で表示します。`;
+  $("#comparisonNote").textContent=note;
+  $("#comparisonModal").classList.remove("hidden"); document.body.classList.add("modal-open");
+}
+function closeTrainingComparison(){ $("#comparisonModal")?.classList.add("hidden"); document.body.classList.remove("modal-open"); }
 async function removeTraining(id){ if(!confirm("この練習記録を削除しますか？"))return; await deleteRecord("trainings",Number(id)); await refreshMenuUsageStats(); populateCategories(); toast("削除しました"); await refreshAll(); }
 async function renderMeets(){
   const all=await getAll("meets"),trainings=await getAll("trainings"),today=todayISO();
@@ -601,8 +665,29 @@ async function renderMeets(){
   }).join(""):'<div class="card empty">大会予定はまだありません。</div>';
 }
 
+function csvEscape(value){ const s=String(value??"").replace(/\r?\n/g," "); return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s; }
+function csvTimeValue(value){ const n=Number(value); return Number.isFinite(n)&&n>0?timeInputValue(n):""; }
+function csvRestValue(item,keySeconds,keyMin){ const sec=Number(item?.[keySeconds])||((Number(item?.[keyMin])||0)*60); return sec>0?timeInputValue(sec):""; }
+function csvTrainingRow(record,item,index,context){
+  const base={日付:record.date||"",活動種別:"練習",メニュー番号:index+1,メニュー分類:"",メニュー名:"",距離m:"",助走距離m:"",本数:"",セット:"",平均タイム:"",最速タイム:"",全タイム:"",平均ペースkm:"",本間レスト:"",セット間レスト:"",重量kg:"",rep:"",ウェイトset:"",総ボリュームkg:"",カスタム代表値:"",単位:"",練習前疲労:record.fatigueBefore||record.fatigue||"",練習後疲労:record.fatigueAfter||record.fatigue||"",練習時間分:record.durationMin||"",大会名:"",試合種目:"",試合ラウンド:"",試合記録:"",順位:"",風速ms:"",PB:"",SB:"",RPE:"",メモ:record.notes||"",自動コメント:historicalTrainingCoach(record,context)};
+  if(isWeightRecord(item)){base.メニュー分類="ウェイト";base.メニュー名=item.weightExerciseName||"ウェイト";base.重量kg=item.weightKg??"";base.rep=item.weightReps??"";base.ウェイトset=item.weightSets??"";base.総ボリュームkg=item.weightVolume??"";return base;}
+  if(isCustomRecord(item)){base.メニュー分類="カスタム";base.メニュー名=item.customMenuName||"カスタム";base.カスタム代表値=item.representativeValue??"";base.単位=item.unit||"";return base;}
+  const ts=(item.times||[]).map(Number).filter(v=>Number.isFinite(v)&&v>0); base.メニュー分類="ランニング";base.メニュー名=CATEGORY_LABELS[item.category]||item.category||"";base.距離m=item.distance??"";base.助走距離m=item.approachDistance??"";base.本数=item.reps??"";base.セット=item.sets??"";base.平均タイム=csvTimeValue(item.averageTime);base.最速タイム=csvTimeValue(bestTrainingTime(item));base.全タイム=ts.map(csvTimeValue).join(" / ");base.平均ペースkm=item.distance&&item.averageTime?paceText(item.distance,item.averageTime).replace(" /km","/km"):"";base.本間レスト=csvRestValue(item,"restSeconds","restMin");base.セット間レスト=csvRestValue(item,"setRestSeconds","setRestMin");return base;
+}
+function csvRaceRow(race){ return{日付:race.date||"",活動種別:"試合",メニュー番号:"",メニュー分類:"試合",メニュー名:race.name||"",距離m:"",助走距離m:"",本数:"",セット:"",平均タイム:"",最速タイム:"",全タイム:"",平均ペースkm:"",本間レスト:"",セット間レスト:"",重量kg:"",rep:"",ウェイトset:"",総ボリュームkg:"",カスタム代表値:"",単位:"",練習前疲労:race.fatigueBefore||"",練習後疲労:race.fatigueAfter||"",練習時間分:"",大会名:race.name||"",試合種目:race.event||"",試合ラウンド:race.round||"",試合記録:csvTimeValue(race.resultSeconds),順位:race.place??"",風速ms:race.wind??"",PB:race.isPB?"YES":"",SB:race.isSB?"YES":"",RPE:race.rpe??"",メモ:race.notes||"",自動コメント:storedText(race.raceResultComment)||""}; }
+async function exportCsv(){
+  const trainings=await getAll("trainings"),meets=await getAll("meets"),context={trainings,meets},rows=[];
+  [...trainings].sort((a,b)=>String(a.date).localeCompare(String(b.date))||Number(a.id)-Number(b.id)).forEach(record=>{const items=isDailySession(record)?sessionItems(record):[record];items.forEach((item,index)=>rows.push(csvTrainingRow(record,item,index,context)));});
+  meets.filter(x=>x.status==="completed").sort((a,b)=>String(a.date).localeCompare(String(b.date))||Number(a.id)-Number(b.id)).forEach(r=>rows.push(csvRaceRow(r)));
+  const headers=["日付","活動種別","メニュー番号","メニュー分類","メニュー名","距離m","助走距離m","本数","セット","平均タイム","最速タイム","全タイム","平均ペースkm","本間レスト","セット間レスト","重量kg","rep","ウェイトset","総ボリュームkg","カスタム代表値","単位","練習前疲労","練習後疲労","練習時間分","大会名","試合種目","試合ラウンド","試合記録","順位","風速ms","PB","SB","RPE","メモ","自動コメント"];
+  const csv='\uFEFF'+[headers.join(','),...rows.map(r=>headers.map(h=>csvEscape(r[h])).join(','))].join('\r\n'),name=`track-log-${todayISO()}.csv`,file=new File([csv],name,{type:"text/csv;charset=utf-8"});
+  const mobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(mobile&&navigator.share&&navigator.canShare?.({files:[file]})){try{await navigator.share({files:[file],title:"Track Log CSV",text:"Track Logの練習・試合記録CSVです。"});toast("CSVの共有・保存画面を開きました");return;}catch(err){if(err?.name==="AbortError")return;}}
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(`CSVを書き出しました（${rows.length}行）`);
+}
+
 async function exportData(){
-  const data={version:8,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),profile,customMenus,presets,weightPresets,trainings:await getAll("trainings"),meets:await getAll("meets")},name=`track-log-backup-${todayISO()}.json`,json=JSON.stringify(data,null,2),file=new File([json],name,{type:"application/json"});
+  const data={version:9,appVersion:APP_VERSION,exportedAt:new Date().toISOString(),profile,customMenus,presets,weightPresets,trainings:await getAll("trainings"),meets:await getAll("meets")},name=`track-log-backup-${todayISO()}.json`,json=JSON.stringify(data,null,2),file=new File([json],name,{type:"application/json"});
   const mobile=/android|iphone|ipad|ipod/i.test(navigator.userAgent);
   if(mobile&&navigator.share&&navigator.canShare?.({files:[file]})){
     try{await navigator.share({files:[file],title:"Track Log バックアップ",text:"機種変更・復元用のバックアップファイルです。Google Drive / iCloud Drive / ファイル等へ保存してください。"});toast("バックアップの共有・保存画面を開きました");return;}catch(err){if(err?.name==="AbortError")return;}

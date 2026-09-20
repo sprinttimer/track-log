@@ -10,13 +10,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Track Log">
-  <link rel="manifest" href="./manifest.webmanifest?v=310">
+  <link rel="manifest" href="./manifest.webmanifest?v=320">
   <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32-v240.png">
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48-v240.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192-v240.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v240.png">
-  <link rel="stylesheet" href="./styles.css?v=310">
+  <link rel="stylesheet" href="./styles.css?v=320">
   <title>Track Log</title>
 </head>
 <body>
@@ -49,6 +49,7 @@
         <div id="weeklyMetrics" class="metric-strip"></div>
       </article>
       <article class="card"><div class="section-title"><h3>次の大会</h3><button class="link-btn" data-nav="calendarView" type="button">大会を管理</button></div><div id="nextMeet">大会予定はまだありません。</div></article>
+      <article class="card season-best-home-card"><div class="section-title"><div><h3>今季ベスト</h3><span class="muted" id="bestHomeYear">--</span></div><button class="link-btn" data-nav="bestView" type="button">ベスト記録を見る</button></div><div id="bestHomeSummary" class="season-best-home-summary">記録が増えると、距離別の練習SBと公認試合SBを自動集計します。</div></article>
       <article class="card"><div class="section-title"><h3>最近の活動</h3><button class="link-btn" data-nav="historyView" type="button">すべて見る</button></div><div id="recentList" class="list empty">まだ記録がありません。</div></article>
     </section>
 
@@ -154,7 +155,7 @@
     </section>
 
     <section id="historyView" class="view">
-      <div class="page-title"><div><div class="eyebrow">ACTIVITY LOG</div><h2>活動日誌</h2></div><button id="exportBtn" class="ghost" type="button">バックアップ</button></div>
+      <div class="page-title"><div><div class="eyebrow">ACTIVITY LOG</div><h2>活動日誌</h2></div><div class="page-title-actions"><button class="ghost" data-nav="bestView" type="button">ベスト記録</button><button id="exportBtn" class="ghost" type="button">バックアップ</button></div></div>
       <div class="card history-search-card">
         <div class="history-view-switch segmented" role="group" aria-label="日誌表示切替"><button id="historyListModeBtn" class="active" type="button">☰ 一覧</button><button id="historyCalendarModeBtn" type="button">▦ カレンダー</button></div>
         <div class="filters"><select id="historyTypeFilter"><option value="">すべての活動</option><option value="running">ランニング</option><option value="weight">ウェイト</option><option value="custom">カスタム</option><option value="race">試合</option></select><div class="keyword-search"><span class="search-icon" aria-hidden="true">⌕</span><input id="historySearch" type="search" placeholder="例：300 / ブロック / 41.20 / 県記録会"><button id="historySearchClear" class="search-clear" type="button" aria-label="検索をクリア">×</button></div></div>
@@ -171,6 +172,31 @@
         </article>
         <div id="historyCalendarDayDetail" class="stack"></div>
       </div>
+    </section>
+
+    <section id="bestView" class="view">
+      <div class="page-title"><div><div class="eyebrow">SEASON BEST</div><h2>ベスト記録</h2></div><button class="ghost" data-nav="historyView" type="button">日誌へ戻る</button></div>
+      <article class="card season-best-control">
+        <div class="section-title"><div><h3>シーズン</h3><p class="muted">保存済みの日誌・試合結果から自動集計します。ベスト記録をタップすると、その日の活動日誌へ移動します。</p></div><label class="season-year-label">年度<select id="bestSeasonYear"></select></label></div>
+        <div class="season-best-summary-strip"><div><span>練習SB</span><strong id="trainingSbCount">0</strong></div><div><span>公認試合SB</span><strong id="raceSbCount">0</strong></div><div><span>対象年</span><strong id="bestSeasonYearLabel">--</strong></div></div>
+      </article>
+
+      <article class="card">
+        <div class="section-title"><div><h3>距離別 練習シーズンベスト</h3><p class="muted">同じ距離の練習から、そのシーズンで最も速いタイムを自動抽出します。複数本では最速1本を使用します。</p></div><span class="pill best">TRAINING SB</span></div>
+        <div id="trainingSeasonBestList" class="season-best-list"></div>
+        <p class="tiny-note">※ フライング走は助走条件が異なるため、通常の距離別SBには混ぜず下の別枠で集計します。練習SBは公認記録ではありません。</p>
+      </article>
+
+      <article id="flyingSeasonBestCard" class="card hidden">
+        <div class="section-title"><div><h3>フライング走 シーズンベスト</h3><p class="muted">計測距離と助走距離が同じ条件ごとに集計します。</p></div><span class="pill blue">FLYING</span></div>
+        <div id="flyingSeasonBestList" class="season-best-list"></div>
+      </article>
+
+      <article class="card">
+        <div class="section-title"><div><h3>公認試合 シーズンベスト</h3><p class="muted">試合結果から種目別のSBを自動集計します。100m・200m・100mH・110mHは公認条件として風速+2.0m/s以内かつ風速入力済みの記録を対象にします。</p></div><span class="pill red">OFFICIAL SB</span></div>
+        <div id="raceSeasonBestList" class="season-best-list"></div>
+        <p id="raceSeasonBestNote" class="tiny-note"></p>
+      </article>
     </section>
 
     <section id="calendarView" class="view">
@@ -222,7 +248,7 @@
         </div>
       </article>
 
-      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v310</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
+      <article class="card"><div class="section-title"><h3>ホーム画面・ブックマーク</h3><span class="pill">PWA v320</span></div><div id="installHelp" class="muted">端末・ブラウザを確認しています。</div><div class="button-row top-gap"><button id="installBtn2" class="primary" type="button">アプリをインストール</button><button id="bookmarkHelpBtn" class="secondary" type="button">ブックマーク方法</button><button id="copyUrlBtn" class="secondary" type="button">URLをコピー</button></div><div id="pwaStatus" class="diagnostic top-gap"></div><p class="tiny-note">旧バージョンを既にホーム画面へ追加している場合、OSが古いアイコンを保持することがあります。その場合は旧ショートカットだけ削除し、このページを再読み込みしてから再度追加してください。</p></article>
     </section>
   </main>
 
@@ -238,6 +264,6 @@
 
   <nav class="bottom-nav"><button data-nav="homeView" class="active" type="button"><span>⌂</span>ホーム</button><button data-nav="historyView" type="button"><span>≡</span>日誌</button><button data-nav="entryView" class="nav-add" type="button"><span>＋</span>記録</button><button data-nav="calendarView" type="button"><span>▣</span>大会</button><button data-nav="settingsView" type="button"><span>⚙</span>設定</button></nav>
   <div id="toast" class="toast hidden"></div>
-  <script src="./db.js?v=310"></script><script src="./coach.js?v=310"></script><script src="./app.js?v=310"></script>
+  <script src="./db.js?v=320"></script><script src="./coach.js?v=320"></script><script src="./app.js?v=320"></script>
 </body>
 </html>

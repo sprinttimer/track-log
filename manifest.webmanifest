@@ -3,7 +3,7 @@
   "name": "Track Log - 陸上トレーニング日誌",
   "short_name": "Track Log",
   "description": "陸上トラック競技に特化した練習・試合記録、コンディション分析、簡易コーチ",
-  "start_url": "./?source=pwa&v=310",
+  "start_url": "./?source=pwa&v=320",
   "scope": "./",
   "display": "standalone",
   "display_override": [

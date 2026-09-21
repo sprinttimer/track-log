@@ -1,5 +1,5 @@
-const APP_VERSION = "3.2.0-20260919";
-const BUILD_TAG = "320";
+const APP_VERSION = "3.2.1-20260921";
+const BUILD_TAG = "321";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const PB_EVENTS = [
